@@ -43,6 +43,12 @@ Vagrant.configure("2") do |config|
           docker-compose up -d
         fi
       SHELL
+
+      # Prueba automática: corre sola al final de cada `vagrant up` de freeradius.
+      # A mano: vagrant provision freeradius --provision-with test
+      if vm[:name] == "freeradius"
+        m.vm.provision "test", type: "shell", run: "always", path: "scripts/test.sh"
+      end
     end
   end
 end

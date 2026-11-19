@@ -51,6 +51,14 @@ Requisitos: VirtualBox y Vagrant.
 
 ## Verificar
 
+Al terminar `vagrant up`, la VM freeradius corre sola [`scripts/test.sh`](scripts/test.sh) y muestra un resumen `[OK]` / `[FALLA]`: Accept y Reject (PAP y CHAP), el plan devuelto desde la base, la conexión de FreeRADIUS a PostgreSQL, que el usuario `radius` no pueda borrar accounting, que `grafana` sea rechazado desde una IP no autorizada y que los intentos queden en `radpostauth`. Para repetirla:
+
+```bash
+vagrant provision freeradius --provision-with test
+```
+
+Pruebas puntuales a mano:
+
 ```bash
 # En freeradius: autenticación contra la base (CHAP)
 vagrant ssh freeradius -c "radtest -t chap abonado1 secreto1 127.0.0.1 0 \$(grep RADIUS_SECRET_LOCAL /vagrant/freeradius/.env | cut -d= -f2)"
