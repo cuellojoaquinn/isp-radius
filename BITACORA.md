@@ -194,3 +194,27 @@ Mapeo red UTM ↔ interfaz hecho comparando MACs (UTM *Edit → Network* vs `/in
 - Dato: en R1 los nombres de ether2/ether3 están intercambiados respecto de su `default-name` (`set [find default-name=ether3] name=ether2`), por eso el orden de las NICs en UTM no coincidía con el número de ether y hubo que mapear por MAC.
 - **Decisión:** se eliminaron los usuarios locales de R1 (`/ppp secret`): los abonados los gestiona solo FreeRADIUS. abonado2 se migra a la base (`radcheck` + `radusergroup` → `plan-50m`). Consecuencia asumida: si el RADIUS se cae, ningún abonado nuevo puede entrar (no hay respaldo local).
 - **Prueba automática:** `scripts/test.sh`, que Vagrant corre al final del `vagrant up` de la VM freeradius (y se repite con `vagrant provision freeradius --provision-with test`). Verifica Accept/Reject con PAP y CHAP, el plan que vuelve de la base, la conexión `radius` → PostgreSQL, que `radius` no tenga DELETE, que `grafana` sea rechazado por `pg_hba` desde otra IP y que los intentos queden en `radpostauth`.
+
+## 2026-11-20 — Diseño: suspensión por falta de pago
+
+Discusión de diseño (todavía sin implementar).
+
+- **Separación de responsabilidades:** las reglas de negocio (deuda, vencimiento, pagos) **no van en las tablas de FreeRADIUS** ni se modifica su esquema, porque el módulo `sql` tiene queries que dependen de él. Viven en un **sistema de facturación** con su propia base.
+- **Contrato acotado entre los dos:** facturación escribe en la base de RADIUS **solo con atributos que RADIUS ya entiende**, usando un usuario de base propio (`facturacion`) con permisos mínimos (por ejemplo, solo `radusergroup`). No se crea ningún módulo de FreeRADIUS.
+- **Quién mira el calendario:** FreeRADIUS es **reactivo**, solo actúa cuando le llega un pedido. Por eso la detección la hace un **proceso en segundo plano de facturación** (por ejemplo, diario). Riesgo a cubrir: si el proceso falla, nadie es suspendido y nadie se entera, así que hace falta un log o una alerta.
+- **Qué significa suspender en RADIUS:** mover al abonado al grupo **`moroso`**, que **rechaza** el acceso. Rehabilitar es devolverlo a su plan; el **plan contratado lo recuerda facturación**, no RADIUS.
+  - Consecuencia asumida: el abonado queda sin servicio y sin aviso de por qué. Mejora posible (fuera de alcance): dejarlo entrar y redirigirlo a una página de pago (*walled garden*).
+- **Cortar al que ya está conectado:** cambiar el grupo solo afecta la **próxima** autenticación. Para cortar en el momento, **Disconnect-Message** (RFC 5176) hacia R1 por `/radius incoming` (UDP 3799), que solo acepta órdenes de IPs conocidas y con secret. Alternativa: **CoA** para cambiar atributos en caliente sin desconectar.
+- **Quién manda el Disconnect:**
+  - A) Facturación directo a R1: simple, pero cada router tiene que confiar en facturación, y facturación tiene que conocer la red.
+  - B) Facturación → FreeRADIUS → R1: los routers confían solo en RADIUS, y RADIUS sabe **en qué router está el abonado** (`radacct.nasipaddress` de la sesión abierta).
+
+Flujo resultante:
+
+```
+1. Facturación (job diario) detecta: abonado venció y no pagó
+2. Facturación → base RADIUS: radusergroup plan-50m → moroso (usuario facturacion)
+3. Disconnect-Request → R1 :3799 (sesión abierta según radacct)
+4. El abonado reconecta → FreeRADIUS lee "moroso" → Access-Reject
+5. Paga → facturación lo devuelve a su plan contratado
+```
