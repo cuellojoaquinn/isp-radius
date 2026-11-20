@@ -12,6 +12,23 @@ services:
       - ./clients.conf:/etc/raddb/clients.conf:ro
       - ./authorize:/etc/raddb/mods-config/files/authorize:ro
       - ./sql:/etc/raddb/mods-enabled/sql:ro
+      - ./status:/etc/raddb/sites-enabled/status:ro   # estadísticas para el exporter
+    networks: [interna]
+
+  # Estadísticas del servidor (Status-Server) para Prometheus (VM grafana).
+  # Le pregunta a freeradius:18121 por la red interna; ese puerto no se publica.
+  freeradius-exporter:
+    build: ./exporter
+    image: isp-radius/freeradius-exporter:0.2.0
+    container_name: freeradius-exporter
+    restart: unless-stopped
+    depends_on: [freeradius]
+    environment:
+      RADIUS_ADDRESS: freeradius:18121
+      RADIUS_SECRET: ${RADIUS_STATUS_SECRET}   # de freeradius/.env
+    ports:
+      - "10.10.10.10:9812:9812"   # solo en gestion
+    networks: [interna]
 
   # Recursos de la VM. Lo lee Prometheus (VM grafana).
   node-exporter:
@@ -25,3 +42,11 @@ services:
       - --web.listen-address=10.10.10.10:9100   # solo en gestion
     volumes:
       - /:/host:ro,rslave
+
+# Red interna con rango fijo: el client "exporter" del virtual server status
+# (freeradius/status) solo acepta este rango.
+networks:
+  interna:
+    ipam:
+      config:
+        - subnet: 172.30.10.0/24

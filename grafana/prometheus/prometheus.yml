@@ -33,6 +33,12 @@ scrape_configs:
       - targets: ["10.10.10.20:9187"]
         labels: { instance: db, service: db }
 
+  # FreeRADIUS visto desde el servidor (Status-Server): lo que recibió y respondió
+  - job_name: freeradius
+    static_configs:
+      - targets: ["10.10.10.10:9812"]
+        labels: { instance: freeradius, service: radius }
+
   # R1 como equipo y servidor PPPoE: CPU, memoria, interfaces, pool, colas (mktxp)
   - job_name: r1-mktxp
     static_configs:

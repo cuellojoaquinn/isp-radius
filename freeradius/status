@@ -1,0 +1,30 @@
+# Virtual server "status": responde paquetes Status-Server con las estadísticas
+# internas de FreeRADIUS (pedidos recibidos, accepts, rejects, descartados, colas).
+# Lo consulta freeradius-exporter (mismo compose) para Prometheus.
+#
+# Diferencia con /radius monitor de R1: R1 mide lo que *el NAS* vio (timeouts,
+# reenvíos); esto mide lo que *el servidor* recibió y respondió. Si R1 ve timeouts
+# y acá no llegó nada, el problema está en la red o el secret; si llegó, en el
+# servidor o la base.
+#
+# Escucha dentro del contenedor, pero el puerto 18121 NO se publica en la VM:
+# solo se llega desde la red interna de Docker (rango fijo en docker-compose.yml).
+server status {
+	listen {
+		type = status
+		ipaddr = *
+		port = 18121
+	}
+
+	client exporter {
+		ipaddr = 172.30.10.0/24
+		secret = $ENV{RADIUS_STATUS_SECRET}
+	}
+
+	authorize {
+		ok
+		Autz-Type Status-Server {
+			ok
+		}
+	}
+}
