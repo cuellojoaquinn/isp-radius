@@ -218,3 +218,9 @@ Flujo resultante:
 4. El abonado reconecta → FreeRADIUS lee "moroso" → Access-Reject
 5. Paga → facturación lo devuelve a su plan contratado
 ```
+
+**Decisión de implementación (lab):**
+- Datos de facturación en un **esquema propio dentro de la misma base `radius`** (no otra VM ni otra base). Motivos: menos conexiones y configuración; JOINs simples con `radacct`/`radusergroup`; y, sobre todo, la suspensión puede ser **una sola transacción** (registrar la suspensión + mover a `moroso`). Costo asumido: si la base cae, caen RADIUS y facturación juntos.
+- La separación real la dan los **permisos** del usuario `facturacion` (contrato acotado), no el esquema en sí.
+- El **job** es un proceso que corre en la **VM db** y se conecta a la base (no vive dentro de PostgreSQL).
+- Pendiente: definir las tablas mínimas del esquema y los `GRANT` exactos del usuario `facturacion`.
