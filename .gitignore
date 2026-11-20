@@ -9,3 +9,6 @@
 
 # Exports de MikroTik con datos sensibles
 mikrotik/*-sensitive.rsc
+
+# Python
+__pycache__/

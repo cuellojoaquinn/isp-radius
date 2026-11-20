@@ -33,6 +33,18 @@ scrape_configs:
       - targets: ["10.10.10.20:9187"]
         labels: { instance: db, service: db }
 
+  # R1 como equipo y servidor PPPoE: CPU, memoria, interfaces, pool, colas (mktxp)
+  - job_name: r1-mktxp
+    static_configs:
+      - targets: ["mktxp:49090"]
+        labels: { instance: r1, service: pppoe }
+
+  # R1 como cliente RADIUS (/radius monitor -> SLI 1 y 2) y sesiones PPP activas
+  - job_name: r1-radius
+    static_configs:
+      - targets: ["r1-exporter:9437"]
+        labels: { instance: r1, service: radius }
+
   # El propio stack de monitoreo
   - job_name: prometheus
     static_configs:

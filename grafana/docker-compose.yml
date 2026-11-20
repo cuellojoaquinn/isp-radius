@@ -52,6 +52,35 @@ services:
       - ./dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
 
+  # R1 en general (CPU, memoria, interfaces, pool, colas) por la API de RouterOS.
+  # La config se arma al arrancar desde la plantilla del repo + la contraseña de .env
+  # (_mktxp.conf, la config del propio exporter, la crea mktxp con sus valores por defecto).
+  mktxp:
+    image: ghcr.io/akpw/mktxp:2.1.0
+    container_name: mktxp
+    restart: unless-stopped
+    environment:
+      R1_API_PASSWORD: ${R1_API_PASSWORD}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        mkdir -p /tmp/mktxp &&
+        sed "s|__R1_API_PASSWORD__|$${R1_API_PASSWORD}|" /plantilla/mktxp.conf > /tmp/mktxp/mktxp.conf &&
+        exec mktxp --cfg-dir /tmp/mktxp export
+    volumes:
+      - ./mktxp/mktxp.conf:/plantilla/mktxp.conf:ro
+
+  # Lo que mktxp no cubre: /radius monitor (SLI 1 y 2) y /ppp active.
+  r1-exporter:
+    build: ./r1-exporter
+    image: isp-radius/r1-exporter:2
+    container_name: r1-exporter
+    restart: unless-stopped
+    environment:
+      R1_HOST: 10.10.10.1
+      R1_API_USER: ${R1_API_USER}
+      R1_API_PASSWORD: ${R1_API_PASSWORD}
+
   node-exporter:
     image: prom/node-exporter:v1.9.1
     container_name: node-exporter
