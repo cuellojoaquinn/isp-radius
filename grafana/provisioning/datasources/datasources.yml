@@ -11,6 +11,22 @@ datasources:
       timeInterval: 15s          # igual al scrape_interval
       alertmanagerUid: alertmanager
 
+  # Detalle de sesiones y logins (tablas). Usuario de solo lectura, sin radcheck.
+  - name: PostgreSQL radius
+    uid: postgres-radius
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: 10.10.10.20:5432
+    user: grafana
+    jsonData:
+      database: radius
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+      maxOpenConns: 5
+    secureJsonData:
+      password: $GRAFANA_DB_PASSWORD   # de grafana/.env
+
   - name: Alertmanager
     uid: alertmanager
     type: alertmanager

@@ -1,0 +1,151 @@
+{
+  "uid": "postgresql",
+  "title": "PostgreSQL",
+  "description": "Las cuatro señales doradas de la base (bitácora 18/11) y el estado del accounting. Vista de causas.",
+  "tags": ["isp-radius", "causas", "db"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    { "id": 100, "type": "row", "title": "Accounting (radacct)", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 } },
+    {
+      "id": 1, "type": "stat", "title": "SLI 4 · Frescura del accounting",
+      "description": "Sesiones abiertas con Start o Interim en los últimos 11 min / sesiones abiertas. Sin sesiones abiertas no hay dato.",
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "radius_sesiones_activas_frescas / radius_sesiones_activas_total", "instant": true } ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 1, "noValue": "sin sesiones",
+        "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 0.95 }, { "color": "green", "value": 0.99 } ] } } },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 2, "type": "stat", "title": "Sesiones abiertas",
+      "gridPos": { "x": 6, "y": 1, "w": 4, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "radius_sesiones_activas_total", "legendFormat": "abiertas", "instant": true },
+        { "refId": "B", "expr": "radius_sesiones_activas_frescas", "legendFormat": "frescas", "instant": true }
+      ],
+      "options": { "colorMode": "none", "graphMode": "none", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 3, "type": "stat", "title": "SLI 3 · Sesiones con corte normal (24 h)",
+      "description": "Cerradas por causa normal / total cerradas en las últimas 24 h. Normales: User-Request, Session-Timeout, Idle-Timeout, Admin-Reset, NAS-Request.",
+      "gridPos": { "x": 10, "y": 1, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "instant": true,
+        "expr": "sum(increase(radius_sesiones_cerradas_total{tipo=\"normal\"}[24h])) / sum(increase(radius_sesiones_cerradas_total[24h]))" } ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 1, "noValue": "sin cortes",
+        "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 0.9 }, { "color": "green", "value": 0.98 } ] } } },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 4, "type": "piechart", "title": "Causas de corte (rango elegido)",
+      "gridPos": { "x": 16, "y": 1, "w": 8, "h": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "instant": true, "legendFormat": "{{causa}} ({{tipo}})",
+        "expr": "sum by (causa, tipo) (increase(radius_sesiones_cerradas_total[$__range])) > 0" } ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value"] }, "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 5, "type": "table", "title": "Últimas sesiones (SQL)",
+      "description": "Directo de radacct con el usuario grafana (solo lectura). Horas en la zona del navegador.",
+      "gridPos": { "x": 0, "y": 6, "w": 16, "h": 9 },
+      "datasource": { "type": "grafana-postgresql-datasource", "uid": "postgres-radius" },
+      "targets": [ { "refId": "A", "format": "table", "rawQuery": true, "editorMode": "code",
+        "rawSql": "SELECT username AS abonado, framedipaddress AS ip, acctstarttime AS inicio, acctupdatetime AS ult_update, acctstoptime AS fin, acctsessiontime AS segundos, acctinputoctets AS subida, acctoutputoctets AS bajada, COALESCE(acctterminatecause, 'abierta') AS causa FROM radacct ORDER BY acctstarttime DESC LIMIT 50" } ],
+      "fieldConfig": { "defaults": {}, "overrides": [
+        { "matcher": { "id": "byRegexp", "options": "subida|bajada" }, "properties": [ { "id": "unit", "value": "decbytes" } ] },
+        { "matcher": { "id": "byName", "options": "segundos" }, "properties": [ { "id": "unit", "value": "s" } ] }
+      ] }
+    },
+
+    { "id": 101, "type": "row", "title": "Tráfico", "gridPos": { "x": 0, "y": 15, "w": 24, "h": 1 } },
+    {
+      "id": 10, "type": "timeseries", "title": "Transacciones por segundo",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "legendFormat": "commit", "expr": "rate(pg_stat_database_xact_commit{datname=\"radius\"}[$__rate_interval])" },
+        { "refId": "B", "legendFormat": "rollback", "expr": "rate(pg_stat_database_xact_rollback{datname=\"radius\"}[$__rate_interval])" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Escrituras en tablas de FreeRADIUS",
+      "description": "radacct: INSERT = Start, UPDATE = Interim/Stop. radpostauth: un INSERT por intento de login.",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "legendFormat": "{{relname}} insert", "expr": "rate(pg_stat_user_tables_n_tup_ins{datname=\"radius\",relname=~\"radacct|radpostauth\"}[$__rate_interval])" },
+        { "refId": "B", "legendFormat": "{{relname}} update", "expr": "rate(pg_stat_user_tables_n_tup_upd{datname=\"radius\",relname=\"radacct\"}[$__rate_interval])" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "wps" } }
+    },
+
+    { "id": 102, "type": "row", "title": "Errores y latencia", "gridPos": { "x": 0, "y": 23, "w": 24, "h": 1 } },
+    {
+      "id": 20, "type": "stat", "title": "Rollbacks (rango elegido)",
+      "description": "Transacciones deshechas. Ojo: scripts/test.sh provoca uno a propósito (DELETE sin permiso).",
+      "gridPos": { "x": 0, "y": 24, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "instant": true, "expr": "increase(pg_stat_database_xact_rollback{datname=\"radius\"}[$__range])" } ],
+      "fieldConfig": { "defaults": { "decimals": 0, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 1 } ] } } },
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 21, "type": "stat", "title": "Deadlocks (rango elegido)",
+      "gridPos": { "x": 6, "y": 24, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "instant": true, "expr": "increase(pg_stat_database_deadlocks{datname=\"radius\"}[$__range])" } ],
+      "fieldConfig": { "defaults": { "decimals": 0, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } },
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 22, "type": "timeseries", "title": "Consulta activa más larga",
+      "description": "Si crece, FreeRADIUS espera a la base y el NAS empieza a reenviar (SLI 2).",
+      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "legendFormat": "máx", "expr": "radius_pg_consultas_max_segundos" } ],
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 } }
+    },
+
+    { "id": 103, "type": "row", "title": "Saturación", "gridPos": { "x": 0, "y": 29, "w": 24, "h": 1 } },
+    {
+      "id": 30, "type": "gauge", "title": "Conexiones / max_connections",
+      "description": "Alerta al 80 % (paso 5). FreeRADIUS abre un pool de conexiones propio.",
+      "gridPos": { "x": 0, "y": 30, "w": 6, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "instant": true, "expr": "sum(pg_stat_activity_count) / max(pg_settings_max_connections)" } ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1,
+        "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.7 }, { "color": "red", "value": 0.8 } ] } } }
+    },
+    {
+      "id": 31, "type": "timeseries", "title": "Conexiones por usuario y estado",
+      "gridPos": { "x": 6, "y": 30, "w": 10, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "legendFormat": "{{usename}} {{state}}", "expr": "sum by (usename, state) (pg_stat_activity_count{datname=\"radius\"}) > 0" } ],
+      "fieldConfig": { "defaults": { "min": 0, "decimals": 0, "custom": { "stacking": { "mode": "normal" }, "fillOpacity": 30 } } }
+    },
+    {
+      "id": 32, "type": "stat", "title": "Esperando bloqueo",
+      "gridPos": { "x": 16, "y": 30, "w": 8, "h": 3 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "instant": true, "expr": "radius_pg_consultas_esperando_bloqueo" } ],
+      "fieldConfig": { "defaults": { "decimals": 0, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 1 } ] } } },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 33, "type": "stat", "title": "Tamaño de radacct / disco de db",
+      "gridPos": { "x": 16, "y": 33, "w": 8, "h": 3 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "instant": true, "legendFormat": "radacct", "expr": "radius_radacct_bytes" },
+        { "refId": "B", "instant": true, "legendFormat": "disco libre", "expr": "node_filesystem_avail_bytes{instance=\"db\",mountpoint=\"/\"}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "decbytes" } },
+      "options": { "colorMode": "none", "graphMode": "none", "textMode": "value_and_name", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    }
+  ]
+}

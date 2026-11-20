@@ -1,0 +1,80 @@
+# Consultas propias de postgres_exporter: llevan a Prometheus los SLI que viven
+# en radacct, para que los 4 SLIs se consulten igual (PromQL), tengan historia
+# y se les pueda calcular tasa de quema. Cada clave genera métricas
+# <clave>_<columna>.
+#
+# Nota: el usuario radius no tiene DELETE sobre radacct/radpostauth, así que los
+# count(*) solo crecen y Prometheus los puede tratar como contadores (increase()).
+
+# SLI 3 — estabilidad de sesiones: sesiones cerradas por causa de corte.
+# La clasificación normal/anormal sale de la bitácora (18/11). NAS-Request es la
+# causa que manda MikroTik al sacar la sesión con /ppp active remove (bitácora 19/11).
+#
+# Las causas conocidas se devuelven SIEMPRE, en 0 si no hubo cortes: si una serie
+# apareciera recién con el primer corte (valor 1), increase() lo tomaría como
+# punto de partida y ese primer corte no se contaría nunca.
+radius_sesiones_cerradas:
+  query: |
+    WITH conocidas(causa, tipo) AS (VALUES
+      ('User-Request', 'normal'), ('Session-Timeout', 'normal'), ('Idle-Timeout', 'normal'),
+      ('Admin-Reset', 'normal'), ('NAS-Request', 'normal'),
+      ('Lost-Carrier', 'anormal'), ('Lost-Service', 'anormal'), ('NAS-Error', 'anormal'),
+      ('NAS-Reboot', 'anormal'), ('Port-Error', 'anormal')
+    ),
+    cerradas AS (
+      SELECT COALESCE(acctterminatecause, 'desconocida') AS causa, count(*) AS total
+      FROM radacct
+      WHERE acctstoptime IS NOT NULL
+      GROUP BY 1
+    )
+    SELECT COALESCE(k.causa, c.causa) AS causa,
+           COALESCE(k.tipo, 'otra')   AS tipo,
+           COALESCE(c.total, 0)       AS total
+    FROM conocidas k
+    FULL JOIN cerradas c ON c.causa = k.causa
+  metrics:
+    - causa: { usage: LABEL, description: "Acct-Terminate-Cause que mandó el NAS en el Stop" }
+    - tipo:  { usage: LABEL, description: "normal / anormal / otra" }
+    - total: { usage: COUNTER, description: "Sesiones cerradas desde que existe la base" }
+
+# SLI 4 — frescura del accounting: de las sesiones abiertas, cuántas recibieron
+# Start o Interim hace menos de 11 min (2 Interim de 5 min + 1 min de margen).
+radius_sesiones_activas:
+  query: |
+    SELECT count(*) AS total,
+           count(*) FILTER (WHERE acctupdatetime > now() - interval '11 minutes') AS frescas
+    FROM radacct
+    WHERE acctstoptime IS NULL
+  metrics:
+    - total:   { usage: GAUGE, description: "Sesiones abiertas en radacct (sin Stop)" }
+    - frescas: { usage: GAUGE, description: "Sesiones abiertas con accounting de los últimos 11 min" }
+
+# Logins vistos desde la base (cada Access-Accept/Reject queda en radpostauth)
+radius_postauth:
+  query: |
+    SELECT reply AS resultado, count(*) AS total
+    FROM radpostauth
+    GROUP BY 1
+  metrics:
+    - resultado: { usage: LABEL, description: "Access-Accept / Access-Reject" }
+    - total:     { usage: COUNTER, description: "Intentos de autenticación registrados" }
+
+# Saturación: tamaño de la tabla que más crece
+radius_radacct:
+  query: |
+    SELECT pg_total_relation_size('radacct') AS bytes,
+           (SELECT count(*) FROM radacct) AS filas
+  metrics:
+    - bytes: { usage: GAUGE, description: "Tamaño de radacct con índices" }
+    - filas: { usage: GAUGE, description: "Filas de radacct" }
+
+# Latencia y saturación de la base
+radius_pg_consultas:
+  query: |
+    SELECT COALESCE(max(EXTRACT(EPOCH FROM now() - query_start)), 0) AS max_segundos,
+           count(*) FILTER (WHERE wait_event_type = 'Lock') AS esperando_bloqueo
+    FROM pg_stat_activity
+    WHERE state = 'active' AND pid <> pg_backend_pid()
+  metrics:
+    - max_segundos:      { usage: GAUGE, description: "Duración de la consulta activa más larga" }
+    - esperando_bloqueo: { usage: GAUGE, description: "Consultas esperando un bloqueo" }

@@ -15,6 +15,27 @@ services:
       - ./init:/docker-entrypoint-initdb.d:ro    # corre solo con el volumen vacío
       - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
       - pgdata:/var/lib/postgresql/data
+    networks: [interna]
+
+  # Métricas de PostgreSQL para Prometheus (VM grafana). Entra a la base por la
+  # red interna de Docker con el usuario exporter (pg_monitor, solo lectura).
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.17.1
+    container_name: postgres-exporter
+    restart: unless-stopped
+    depends_on: [postgres]
+    environment:
+      DATA_SOURCE_URI: "postgres:5432/radius?sslmode=disable"
+      DATA_SOURCE_USER: exporter
+      DATA_SOURCE_PASS: ${EXPORTER_DB_PASSWORD}   # de db/.env
+    command:
+      - --extend.query-path=/etc/postgres-exporter/queries.yml   # SLI 3 y 4 (ver archivo)
+      - --collector.long_running_transactions
+    ports:
+      - "10.10.10.20:9187:9187"   # solo en gestion
+    volumes:
+      - ./exporter/queries.yml:/etc/postgres-exporter/queries.yml:ro
+    networks: [interna]
 
   # Recursos de la VM (sobre todo disco: es donde crece radacct). Lo lee Prometheus.
   node-exporter:
@@ -31,3 +52,10 @@ services:
 
 volumes:
   pgdata:
+
+# Red interna con rango fijo: pg_hba.conf deja entrar al exporter solo desde acá.
+networks:
+  interna:
+    ipam:
+      config:
+        - subnet: 172.30.20.0/24

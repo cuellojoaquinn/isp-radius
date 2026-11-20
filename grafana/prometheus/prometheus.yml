@@ -27,6 +27,12 @@ scrape_configs:
       - targets: ["10.10.10.30:9100"]
         labels: { instance: grafana, service: monitoreo }
 
+  # PostgreSQL: estadísticas del servidor + consultas propias (SLI 3 y 4)
+  - job_name: postgres
+    static_configs:
+      - targets: ["10.10.10.20:9187"]
+        labels: { instance: db, service: db }
+
   # El propio stack de monitoreo
   - job_name: prometheus
     static_configs:
