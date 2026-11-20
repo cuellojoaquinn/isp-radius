@@ -1,0 +1,16 @@
+# Reglas mínimas del paso 1. Las de SLOs y saturación se suman en el paso 5.
+groups:
+  - name: infraestructura
+    rules:
+      - alert: TargetCaido
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.job }} en {{ $labels.instance }} no responde"
+          description: "Prometheus no puede leer {{ $labels.job }} en {{ $labels.instance }} hace más de 2 minutos."
+          runbook: >-
+            1) ¿La VM está prendida? (vagrant status).
+            2) ¿El contenedor corre? (vagrant ssh {{ $labels.instance }} -c 'docker ps').
+            3) Si corre, ¿responde el puerto desde la VM grafana? (curl {{ $labels.instance }}:puerto/metrics).

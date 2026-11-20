@@ -16,5 +16,18 @@ services:
       - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
       - pgdata:/var/lib/postgresql/data
 
+  # Recursos de la VM (sobre todo disco: es donde crece radacct). Lo lee Prometheus.
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: node-exporter
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=10.10.10.20:9100   # solo en gestion
+    volumes:
+      - /:/host:ro,rslave
+
 volumes:
   pgdata:

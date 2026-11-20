@@ -1,0 +1,70 @@
+# VM grafana (10.10.10.30): monitoreo.
+#   prometheus    recolecta métricas de los exporters y evalúa las reglas de alerta
+#   alertmanager  agrupa, inhibe y envía las alertas que dispara Prometheus
+#   grafana       solo visualización (datasources y dashboards en provisioning/)
+#   node-exporter recursos de esta VM
+#
+# Las interfaces web se publican en todas las interfaces de la VM: el Vagrantfile
+# las redirige a 127.0.0.1 del host (la red gestion no es accesible desde el host).
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=35d   # SLO mensual: 30 días + margen
+      - --web.enable-lifecycle              # recargar config con POST /-/reload
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager:/etc/alertmanager:ro
+      - alertmanager-data:/alertmanager
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    container_name: grafana
+    restart: unless-stopped
+    env_file: .env             # admin y contraseña de la base: ver .env.example
+    environment:
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: node-exporter
+    restart: unless-stopped
+    network_mode: host         # ve las interfaces reales de la VM
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=10.10.10.30:9100   # solo en gestion
+    volumes:
+      - /:/host:ro,rslave
+
+volumes:
+  prometheus-data:
+  alertmanager-data:
+  grafana-data:

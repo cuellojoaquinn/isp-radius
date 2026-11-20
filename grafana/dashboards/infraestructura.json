@@ -1,0 +1,149 @@
+{
+  "uid": "infraestructura",
+  "title": "Infraestructura",
+  "description": "Recursos de las VMs (node_exporter). Vista de causas: se muestra, no alerta, salvo saturación (disco).",
+  "tags": ["isp-radius", "causas"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "label": "VM",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(node_uname_info, instance)", "refId": "vars" },
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Targets de Prometheus",
+      "description": "1 = Prometheus lee el exporter. 0 = caído (dispara TargetCaido a los 2 min).",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "up", "legendFormat": "{{job}} @ {{instance}}", "instant": true }
+      ],
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "name", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [ { "type": "value", "options": { "0": { "text": "caído" }, "1": { "text": "ok" } } } ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Disco / usado",
+      "description": "Saturación: alerta al pasar el 80 % (paso 5). En db es donde crece radacct.",
+      "gridPos": { "x": 0, "y": 4, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "instant": true, "legendFormat": "{{instance}}",
+          "expr": "1 - node_filesystem_avail_bytes{instance=~\"$instance\",mountpoint=\"/\",fstype!=\"rootfs\"} / node_filesystem_size_bytes{instance=~\"$instance\",mountpoint=\"/\",fstype!=\"rootfs\"}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit", "min": 0, "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.7 }, { "color": "red", "value": 0.8 } ] }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "gauge",
+      "title": "Memoria usada",
+      "gridPos": { "x": 8, "y": 4, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "instant": true, "legendFormat": "{{instance}}",
+          "expr": "1 - node_memory_MemAvailable_bytes{instance=~\"$instance\"} / node_memory_MemTotal_bytes{instance=~\"$instance\"}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit", "min": 0, "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.8 }, { "color": "red", "value": 0.9 } ] }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "gauge",
+      "title": "CPU (últimos 5 min)",
+      "gridPos": { "x": 16, "y": 4, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "instant": true, "legendFormat": "{{instance}}",
+          "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"$instance\",mode=\"idle\"}[5m]))" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit", "min": 0, "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.7 }, { "color": "red", "value": 0.9 } ] }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "CPU por VM",
+      "gridPos": { "x": 0, "y": 10, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "legendFormat": "{{instance}}",
+          "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"$instance\",mode=\"idle\"}[$__rate_interval]))" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Memoria usada por VM",
+      "gridPos": { "x": 12, "y": 10, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "legendFormat": "{{instance}}",
+          "expr": "node_memory_MemTotal_bytes{instance=~\"$instance\"} - node_memory_MemAvailable_bytes{instance=~\"$instance\"}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "min": 0 } }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Tráfico en la red de gestión",
+      "description": "Interfaz eth1 = red gestion (eth0 es la NAT de Vagrant). Positivo: recibido; negativo: enviado.",
+      "gridPos": { "x": 0, "y": 18, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "legendFormat": "{{instance}} rx",
+          "expr": "rate(node_network_receive_bytes_total{instance=~\"$instance\",device=\"eth1\"}[$__rate_interval]) * 8" },
+        { "refId": "B", "legendFormat": "{{instance}} tx",
+          "expr": "-rate(node_network_transmit_bytes_total{instance=~\"$instance\",device=\"eth1\"}[$__rate_interval]) * 8" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bps" } }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Disco / usado (tendencia)",
+      "description": "La pendiente anticipa cuándo se llena: la alerta de saturación avisa antes del borde.",
+      "gridPos": { "x": 12, "y": 18, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "legendFormat": "{{instance}}",
+          "expr": "1 - node_filesystem_avail_bytes{instance=~\"$instance\",mountpoint=\"/\",fstype!=\"rootfs\"} / node_filesystem_size_bytes{instance=~\"$instance\",mountpoint=\"/\",fstype!=\"rootfs\"}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+    }
+  ]
+}

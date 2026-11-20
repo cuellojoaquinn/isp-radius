@@ -1,0 +1,10 @@
+apiVersion: 1
+
+# Los dashboards son archivos JSON en grafana/dashboards/ (versionados en el repo).
+providers:
+  - name: isp-radius
+    folder: ISP RADIUS
+    type: file
+    allowUiUpdates: false        # la fuente de verdad es el repo, no la interfaz
+    options:
+      path: /var/lib/grafana/dashboards

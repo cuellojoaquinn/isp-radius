@@ -12,3 +12,16 @@ services:
       - ./clients.conf:/etc/raddb/clients.conf:ro
       - ./authorize:/etc/raddb/mods-config/files/authorize:ro
       - ./sql:/etc/raddb/mods-enabled/sql:ro
+
+  # Recursos de la VM. Lo lee Prometheus (VM grafana).
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: node-exporter
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=10.10.10.10:9100   # solo en gestion
+    volumes:
+      - /:/host:ro,rslave

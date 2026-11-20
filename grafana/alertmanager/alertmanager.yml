@@ -1,0 +1,13 @@
+# Alertmanager — qué hacer con las alertas que dispara Prometheus.
+# Paso 1: sin canal de aviso todavía; las alertas se ven en http://localhost:9093
+# y en Grafana. El canal (Telegram / mail) y las inhibiciones se definen en el paso 5.
+
+route:
+  receiver: ninguno
+  group_by: [service, alertname]   # una caída de db = un solo aviso, no uno por alerta
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: ninguno

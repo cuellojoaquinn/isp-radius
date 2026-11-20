@@ -1,0 +1,39 @@
+# Prometheus — qué se recolecta y adónde van las alertas.
+#
+# Etiquetas comunes (las mismas que usará Loki a futuro, para cruzar métricas y logs):
+#   instance  nombre de la máquina: db, freeradius, grafana, r1
+#   service   a qué parte del servicio pertenece: db, radius, pppoe, monitoreo
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # Recursos de cada VM (CPU, memoria, disco, red)
+  - job_name: node
+    static_configs:
+      - targets: ["10.10.10.10:9100"]
+        labels: { instance: freeradius, service: radius }
+      - targets: ["10.10.10.20:9100"]
+        labels: { instance: db, service: db }
+      - targets: ["10.10.10.30:9100"]
+        labels: { instance: grafana, service: monitoreo }
+
+  # El propio stack de monitoreo
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels: { instance: grafana, service: monitoreo }
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
+        labels: { instance: grafana, service: monitoreo }

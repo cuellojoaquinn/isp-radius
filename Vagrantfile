@@ -3,18 +3,24 @@
 # Crea tres VMs Debian 12 en la red interna de VirtualBox "gestion" (10.10.10.0/24):
 #   db          10.10.10.20   PostgreSQL en Docker
 #   freeradius  10.10.10.10   FreeRADIUS en Docker
-#   grafana     10.10.10.30   Docker (el compose de Grafana va en grafana/)
+#   grafana     10.10.10.30   monitoreo: Prometheus, Alertmanager, Grafana
 #
 # R1 (MikroTik CHR) y los abonados NO se crean acá: se importan a mano en
 # VirtualBox. El adaptador de R1 que hace de ether1 va en "Red interna" con
 # nombre "gestion" e IP 10.10.10.1/24. Ver README.md.
 #
-# Antes de `vagrant up`: crear freeradius/.env y db/.env desde los .env.example.
+# Antes de `vagrant up`: crear freeradius/.env, db/.env y grafana/.env desde
+# los .env.example.
+#
+# La red "gestion" es interna de VirtualBox: desde el host no se llega. Por eso
+# la VM grafana redirige sus interfaces web a localhost del host:
+#   Grafana http://localhost:3000   Prometheus :9090   Alertmanager :9093
 
 VMS = [
   { name: "db",         ip: "10.10.10.20", compose: "db" },
   { name: "freeradius", ip: "10.10.10.10", compose: "freeradius" },
-  { name: "grafana",    ip: "10.10.10.30", compose: "grafana" },
+  { name: "grafana",    ip: "10.10.10.30", compose: "grafana", memory: 1536,
+    ports: [3000, 9090, 9093] },
 ]
 
 Vagrant.configure("2") do |config|
@@ -34,6 +40,16 @@ Vagrant.configure("2") do |config|
       # Segunda interfaz en la red de gestión, sin gateway
       # (la salida a internet es la NAT de Vagrant)
       m.vm.network "private_network", ip: vm[:ip], virtualbox__intnet: "gestion"
+
+      # Prometheus guarda 35 días de métricas: necesita más memoria
+      if vm[:memory]
+        m.vm.provider("virtualbox") { |vb| vb.memory = vm[:memory] }
+      end
+
+      # Interfaces web accesibles solo desde el propio host (127.0.0.1)
+      (vm[:ports] || []).each do |p|
+        m.vm.network "forwarded_port", guest: p, host: p, host_ip: "127.0.0.1"
+      end
 
       # Levanta el compose de esa VM si existe (en cada `vagrant up`)
       m.vm.provision "compose", type: "shell", run: "always", inline: <<-SHELL
