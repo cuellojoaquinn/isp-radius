@@ -301,3 +301,27 @@ Cada reconexión de abonado1 sumó 3 requests y 3 accepts: Stop de la sesión vi
 - [ ] Canal de aviso (Telegram) y, a futuro, webhook del agente de diagnóstico.
 - [ ] Sistema de logs centralizado (Loki) con las mismas etiquetas `instance`/`service`.
 - [ ] Borrar las sesiones `prueba-N` de `radacct` antes de la defensa (hace un salto falso de 24 h en el SLI 3).
+
+## 2026-11-23 — Modelo de datos de facturación (esquema `facturacion`)
+
+Diseño conversado tabla por tabla (todavía sin implementar):
+
+```
+cliente         id, ...
+tiposervicio    id, nombre, precio, radius_groupname UNIQUE      -- catálogo de planes
+estadoservicio  id, nombre UNIQUE, radius_groupname (NULL = usar el del plan)
+servicio        id, cliente_id → cliente, tiposervicio_id → tiposervicio,
+                estadoservicio_id → estadoservicio, radius_username UNIQUE
+factura         id, servicio_id → servicio, monto, fecha_creacion,
+                fecha_vencimiento, fecha_pago (NULL = impaga)
+```
+
+Decisiones y por qué:
+- **Un usuario de RADIUS representa una conexión, no una persona** → `radius_username` va en `servicio` (un cliente puede tener varias conexiones). `UNIQUE` para que dos servicios no compartan usuario (si no, al cortar uno se cortaría el otro).
+- **Puentes con RADIUS:** `servicio.radius_username` ↔ `username` de `radcheck`/`radusergroup`; `tiposervicio.radius_groupname` ↔ `groupname` de `radusergroup`/`radgroupreply`. `UNIQUE` en el grupo: cada tipo de servicio tiene su propio grupo (consecuencia: "Plan 50 residencial" y "comercial" necesitarían dos grupos).
+- **La factura apunta a `servicio`**: se corta solo el servicio vencido.
+- **`fecha_vencimiento` como columna propia** (y no calculada): permite prórrogas sin tocar el job. Condición del job: `fecha_vencimiento < hoy AND fecha_pago IS NULL`.
+- **Precio en `tiposervicio` + `monto` en `factura`**: el precio del plan es el vigente; el monto es una copia al emitir, para que un aumento no reescriba las facturas viejas.
+- **Estado por servicio, tabla paramétrica `estadoservicio`** (activo / moroso / inactivo) en lugar de un `CHECK`: agregar estados es insertar una fila, y el estado puede llevar datos propios. Se descartó por alcance una tabla de **historia** de estados (mejora posible); parte de esa historia ya la dan `radpostauth` y `radacct`.
+- **Regla del grupo de RADIUS:** el del estado si tiene (`moroso`); si es `NULL` (`activo`), el del plan contratado (`servicio` → `tiposervicio`). Rehabilitar = volver a `activo`; el plan contratado nunca se pierde.
+- **Sin problema de sincronización entre bases:** el job cambia el estado en facturación y el grupo en `radusergroup` en **una sola transacción** (misma base, otro esquema). Fuente de verdad: facturación.
