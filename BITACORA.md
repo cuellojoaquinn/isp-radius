@@ -327,3 +327,14 @@ Decisiones y por qué:
 - **Sin problema de sincronización entre bases:** el job cambia el estado en facturación y el grupo en `radusergroup` en **una sola transacción** (misma base, otro esquema). Fuente de verdad: facturación.
 - **Estados y grupos de RADIUS:** `activo` → `NULL` (usa el plan); `moroso` → grupo `moroso`; `inactivo` (baja) → grupo **`baja`**, separado de `moroso` para que soporte distinga "debe" de "se dio de baja". `inactivo` no puede ser `NULL` porque lo dejaría entrar con su último plan.
 - **Cómo rechaza un grupo:** con una **condición** en `radgroupcheck` (check = antes de decidir), no en `radgroupreply` (reply = solo después de aceptar): `Auth-Type := Reject` para `moroso` y `baja`, una fila por grupo.
+
+### Paso 1 implementado: suspensión y rehabilitación a mano ✅
+
+- `radgroupcheck`: `moroso` y `baja` con `Auth-Type := Reject`.
+- **Suspensión:** `UPDATE radusergroup SET groupname='moroso' WHERE username='abonado1'`. R2 reintenta solo cada ~11 s y cada intento queda como `Access-Reject` en `radpostauth`.
+  - Log de FreeRADIUS de esos pedidos: `chap: Auth-Type := CHAP` → **`sql: Auth-Type = Reject`** → `Found Auth-Type = Reject` → `rejecting user` → `Sent Access-Reject`. El rechazo viene de la condición del grupo y la contraseña ni se evalúa.
+  - Se descartó que viniera del usuario: `radcheck` de abonado1 tenía solo `Cleartext-Password`.
+- **Rehabilitación:** `UPDATE ... SET groupname='plan-50m'`. El siguiente reintento de R2 recibió `Access-Accept`, sin tocar R1.
+- Ciclo completo activo → moroso → activo cambiando **una fila** en la base.
+- Aprendizaje de diagnóstico: en la config por defecto, FreeRADIUS no escribe `Login OK/incorrect` (hace falta `auth = yes` en el log). En modo `-X` el motivo se lee en las líneas `sql: Auth-Type`, `Found Auth-Type` y `Sent Access-*`, filtrando por número de pedido.
+- Pendiente: hubo Rejects a las 22:10 (antes de `moroso`) recién prendidas las VMs, con causa no confirmada.
