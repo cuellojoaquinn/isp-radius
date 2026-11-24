@@ -1,0 +1,6 @@
+# Instalar en la VM db (reemplaza el crontab completo, no duplica):
+#   crontab /ruta/al/repo/facturacion/crontab.txt
+# Ajustar REPO a la ruta del repo en la VM.
+REPO=/home/sysadmin/isp-radius
+0 3 * * *    $REPO/facturacion/suspender.sh   >> $REPO/facturacion/jobs.log 2>&1
+*/5 * * * *  $REPO/facturacion/rehabilitar.sh >> $REPO/facturacion/jobs.log 2>&1

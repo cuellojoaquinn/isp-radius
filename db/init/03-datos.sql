@@ -15,3 +15,8 @@ INSERT INTO radcheck (username, attribute, op, value)
 VALUES ('abonado2', 'Cleartext-Password', ':=', 'secreto2');
 INSERT INTO radusergroup (username, groupname, priority)
 VALUES ('abonado2', 'plan-50m', 1);
+
+-- Grupos que rechazan el acceso (suspensión y baja). Condición por grupo en radgroupcheck.
+INSERT INTO radgroupcheck (groupname, attribute, op, value) VALUES
+  ('moroso', 'Auth-Type', ':=', 'Reject'),
+  ('baja',   'Auth-Type', ':=', 'Reject');

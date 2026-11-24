@@ -12,3 +12,4 @@ mikrotik/*-sensitive.rsc
 
 # Python
 __pycache__/
+facturacion/jobs.log

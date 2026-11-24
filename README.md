@@ -146,3 +146,7 @@ Prometheus relee su configuración y reglas sin reiniciar: `curl -X POST localho
 - FreeRADIUS corre en modo `-X` (debug) para el laboratorio: el log muestra paquetes y la contraseña de la base. También muestra un Status-Server cada 15 s (lo consulta el exporter).
 - `db/init/04-exporter.sh` crea el usuario `exporter`. En una base que ya existía, aplicarlo a mano: `vagrant ssh db -c "docker exec -i postgres bash < /vagrant/db/init/04-exporter.sh"`.
 - En `radacct` hay sesiones de prueba (`Acct-Session-Id` `prueba-N`) generadas con `radclient` el 20/11. Borrarlas hace bajar contadores del SLI 3 y Prometheus lo toma como reinicio (salto falso de 24 h).
+
+## Facturación (suspensión por falta de pago)
+
+Jobs que suspenden a los abonados con facturas vencidas (los pasan al grupo `moroso` de RADIUS y cortan su sesión con un Disconnect vía FreeRADIUS) y los rehabilitan cuando pagan. Ver [`facturacion/README.md`](facturacion/README.md).
