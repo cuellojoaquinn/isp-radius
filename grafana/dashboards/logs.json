@@ -14,6 +14,7 @@
   "editable": true,
   "description": "Logs de las VMs (journal vía Alloy) y de R1 (syslog) en Loki. Retención 14 días.",
   "links": [
+    { "title": "Mapa", "type": "link", "url": "/d/mapa", "icon": "apps", "keepTime": true },
     {
       "title": "Servicio RADIUS (SLOs)",
       "type": "link",

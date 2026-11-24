@@ -422,6 +422,27 @@ Probado deteniendo postgres 3 min: **FreeRADIUS no deja de responder, rechaza a 
 - [ ] Logs de los jobs de facturación al journal (`systemd-cat -t facturacion`) para alertar si el job no corre; hoy van a `facturacion/jobs.log`.
 - [ ] `R1Reiniciado`: queda para después (falta ver qué loguea R1 al arrancar, antes de que haya red).
 
+## 2026-11-24 — Mapa de dependencias
+
+**Parte:** monitoreo. Idea: un diagrama de cada componente y sus conexiones para que el administrador vea **dónde** está el problema.
+
+### Decisiones
+
+- **Fuente revisada antes de diseñar:** el capítulo *Monitoring Distributed Systems* del libro de SRE dice que tuvieron *"only limited success with complex dependency hierarchies"* y que las reglas dependientes se usan solo en partes muy estables. Por eso el mapa es **solo vista**: no genera alertas ni inhibiciones (las alertas siguen por síntoma; las 4 inhibiciones siguen escritas a mano).
+- **El modelo son reglas de registro de Prometheus** (`grafana/prometheus/rules/topologia.yml`), sin archivo aparte ni generador: la regla define a la vez que la conexión existe y cómo se mide. Se puede consultar en vivo (`topologia_nodo`, `topologia_conexion`), por ejemplo desde el futuro agente de diagnóstico. Tiene tests con promtool (sano, base caída, FreeRADIUS caído, sin tráfico, degradado, sin exporters, pool al 85 %).
+- **Salud de cada conexión con métricas que ya existían:** RADIUS = SLI 1 en 5 min (rojo desde el umbral de page); SQL = errores `rlm_sql` del log (el punto ciego del SLI 1); PPPoE = lugar en el pool.
+- **Gris no es verde:** "sin dato" (exporter caído, ventana sin tráfico) y "sin métrica" (facturación y CoA, que todavía no medimos) se dibujan en gris. Que el mapa muestre lo que no monitoreamos es parte del resultado.
+- **Escala:** con muchos NAS las reglas se escriben por tipo (`sum by`) y el mapa muestra "NAS (50)" con el color del peor; el detalle está en los links.
+
+### Problemas
+
+- **Grafana:** la transformación *Organize* no renombra el campo, solo su nombre visible, y Node Graph busca los campos por nombre real (`mainstat`): los números no aparecían. *Add field from calculation* sí crea el campo, pero une todos los frames (mezcló nodos con conexiones); se aplicó por separado a cada consulta (filtro por `refId`).
+- **Node Graph usa el color de las conexiones como texto CSS** (no como número con umbrales): el color va como etiqueta de la serie, una regla por estado.
+- Con el tráfico del lab la conexión R1 → FreeRADIUS queda gris seguido (5 min sin pedidos = "no sé").
+
+### Prueba
+
+Postgres detenido (con silencio en Alertmanager): nodo PostgreSQL y conexión FreeRADIUS → PostgreSQL en rojo (4,2 errores sql/min), R1 → FreeRADIUS en rojo por los Interim sin respuesta. Al levantar la base, todo vuelve a verde (la conexión SQL cuando los errores salen de la ventana de 5 min).
 
 ## 2026-11-26 — Segundo abonado (R3) y tráfico de fondo
 

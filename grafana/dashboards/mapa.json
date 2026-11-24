@@ -1,0 +1,460 @@
+{
+  "uid": "mapa",
+  "title": "Mapa",
+  "tags": [
+    "isp-radius",
+    "causas"
+  ],
+  "schemaVersion": 39,
+  "description": "Dependencias del servicio y salud de cada conexión. Ayuda para ubicar causas: no alerta.",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "editable": true,
+  "links": [
+    {
+      "title": "Servicio RADIUS (SLOs)",
+      "type": "link",
+      "url": "/d/slos",
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
+      "title": "Componentes",
+      "type": "link",
+      "url": "/d/componentes",
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
+      "title": "PostgreSQL",
+      "type": "link",
+      "url": "/d/postgresql",
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
+      "title": "Infraestructura",
+      "type": "link",
+      "url": "/d/infraestructura",
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
+      "title": "Logs",
+      "type": "link",
+      "url": "/d/logs",
+      "icon": "dashboard",
+      "keepTime": true
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "nodeGraph",
+      "title": "Dependencias del servicio y salud de cada conexión",
+      "description": "Flecha = quién necesita a quién. Verde sano · amarillo degradado · rojo falla · gris = no sé (sin tráfico o exporter caído) o no lo medimos. Click en un nodo: links a sus logs y dashboards. Modelo: grafana/prometheus/rules/topologia.yml.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 14
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "nodes",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topologia_nodo",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "edges",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topologia_conexion",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "calculateField",
+          "filter": {
+            "id": "byRefId",
+            "options": "nodes"
+          },
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "reducer": "last"
+            },
+            "alias": "mainstat",
+            "replaceFields": false
+          }
+        },
+        {
+          "id": "calculateField",
+          "filter": {
+            "id": "byRefId",
+            "options": "edges"
+          },
+          "options": {
+            "mode": "reduceRow",
+            "reduce": {
+              "reducer": "last"
+            },
+            "alias": "mainstat",
+            "replaceFields": false
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "Value": true,
+              "Value #nodes": true,
+              "Value #edges": true
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Logs de ${__data.fields.title}",
+                    "url": "/d/logs?var-instance=${__data.fields.instancia}&${__url_time_range}"
+                  },
+                  {
+                    "title": "Componentes (cuatro señales doradas)",
+                    "url": "/d/componentes?${__url_time_range}"
+                  },
+                  {
+                    "title": "PostgreSQL",
+                    "url": "/d/postgresql?${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mainstat"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Valor"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "secondarystat"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Unidad"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "color"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Estado (verde sano · amarillo degradado · rojo falla · gris sin dato)"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "nodes": {
+          "mainStatUnit": "",
+          "secondaryStatUnit": ""
+        },
+        "edges": {}
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Conexiones",
+      "description": "Lo mismo que el mapa, en texto: se lee sin el dibujo.",
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 14,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topologia_conexion",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "id": true,
+              "color": true
+            },
+            "indexByName": {
+              "source": 0,
+              "target": 1,
+              "detail__por": 2,
+              "detail__estado": 3,
+              "Value": 4,
+              "secondarystat": 5
+            },
+            "renameByName": {
+              "source": "Desde",
+              "target": "Hacia",
+              "detail__por": "Por",
+              "detail__estado": "Estado",
+              "Value": "Valor",
+              "secondarystat": "Unidad"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Estado"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "sano": {
+                        "text": "Sano",
+                        "color": "green",
+                        "index": 0
+                      },
+                      "degradado": {
+                        "text": "Degradado",
+                        "color": "yellow",
+                        "index": 1
+                      },
+                      "falla": {
+                        "text": "Falla",
+                        "color": "red",
+                        "index": 2
+                      },
+                      "sin_dato": {
+                        "text": "Sin dato (no sé)",
+                        "color": "#8E8E8E",
+                        "index": 3
+                      },
+                      "sin_metrica": {
+                        "text": "Sin métrica",
+                        "color": "#8E8E8E",
+                        "index": 4
+                      },
+                      "info": {
+                        "text": "Informativo",
+                        "color": "blue",
+                        "index": 5
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Desde"
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Componentes",
+      "gridPos": {
+        "x": 14,
+        "y": 14,
+        "w": 10,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topologia_nodo",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "id": true,
+              "color": true,
+              "instancia": true
+            },
+            "indexByName": {
+              "title": 0,
+              "subtitle": 1,
+              "detail__estado": 2,
+              "Value": 3,
+              "secondarystat": 4
+            },
+            "renameByName": {
+              "title": "Componente",
+              "subtitle": "Dónde",
+              "detail__estado": "Estado",
+              "Value": "Valor",
+              "secondarystat": "Unidad"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Estado"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "sano": {
+                        "text": "Sano",
+                        "color": "green",
+                        "index": 0
+                      },
+                      "degradado": {
+                        "text": "Degradado",
+                        "color": "yellow",
+                        "index": 1
+                      },
+                      "falla": {
+                        "text": "Falla",
+                        "color": "red",
+                        "index": 2
+                      },
+                      "sin_dato": {
+                        "text": "Sin dato (no sé)",
+                        "color": "#8E8E8E",
+                        "index": 3
+                      },
+                      "sin_metrica": {
+                        "text": "Sin métrica",
+                        "color": "#8E8E8E",
+                        "index": 4
+                      },
+                      "info": {
+                        "text": "Informativo",
+                        "color": "blue",
+                        "index": 5
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

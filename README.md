@@ -128,6 +128,7 @@ La red `gestion` es interna de VirtualBox: el Vagrantfile redirige las interface
 - **Componentes** — causas: cuatro señales doradas de R1 (cliente RADIUS y servidor PPPoE) y FreeRADIUS, incluido el cruce *NAS vs servidor*.
 - **PostgreSQL** — cuatro señales doradas de la base, estado del accounting y últimas sesiones (SQL directo).
 - **Infraestructura** — CPU, memoria, disco y red de las VMs.
+- **Mapa** — dependencias del servicio (abonados → R1 → FreeRADIUS → PostgreSQL, y facturación) con la salud de cada conexión: verde sano, amarillo degradado, rojo falla, gris = no sé (sin tráfico o exporter caído) o no lo medimos. Click en un nodo: sus logs y dashboards. El modelo vive en `grafana/prometheus/rules/topologia.yml` (métricas `topologia_nodo` y `topologia_conexion`, con tests) y es solo vista: no alerta.
 - **Logs** — volumen y errores por servicio, logins de FreeRADIUS (filtrables por usuario o MAC), PostgreSQL, eventos de R1 (PPPoE, RADIUS, cambios de config) y kernel/sistema de las VMs.
 
 Todos tienen links entre sí que conservan el rango de tiempo: de un pico en un gráfico se salta a los logs de ese momento.
@@ -163,7 +164,7 @@ Tests de las reglas con series sintéticas:
 
 ```bash
 docker run --rm --entrypoint promtool -v "$PWD/grafana/prometheus:/etc/prometheus:ro" \
-  prom/prometheus:v3.5.0 test rules /etc/prometheus/tests/reglas_test.yml
+  prom/prometheus:v3.5.0 test rules /etc/prometheus/tests/reglas_test.yml /etc/prometheus/tests/topologia_test.yml
 ```
 
 Prometheus relee su configuración y reglas sin reiniciar: `curl -X POST localhost:9090/-/reload`. Loki relee sus reglas solo (cada 1 min).

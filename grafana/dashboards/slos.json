@@ -15,6 +15,7 @@
   },
   "editable": false,
   "links": [
+    { "title": "Mapa", "type": "link", "url": "/d/mapa", "icon": "apps", "keepTime": true },
     {
       "title": "Componentes",
       "type": "link",

@@ -8,6 +8,7 @@
   "refresh": "30s",
   "time": { "from": "now-3h", "to": "now" },
   "links": [
+    { "title": "Mapa", "type": "link", "url": "/d/mapa", "icon": "apps", "keepTime": true },
     { "title": "Servicio RADIUS (SLOs)", "type": "link", "url": "/d/slos", "icon": "dashboard", "keepTime": true },
     { "title": "Componentes", "type": "link", "url": "/d/componentes", "icon": "dashboard", "keepTime": true },
     { "title": "Infraestructura", "type": "link", "url": "/d/infraestructura", "icon": "dashboard", "keepTime": true },
