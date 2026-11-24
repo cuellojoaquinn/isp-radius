@@ -19,19 +19,29 @@
       "title": "Servicio RADIUS (SLOs)",
       "type": "link",
       "url": "/d/slos",
-      "icon": "dashboard"
+      "icon": "dashboard",
+      "keepTime": true
     },
     {
       "title": "PostgreSQL",
       "type": "link",
       "url": "/d/postgresql",
-      "icon": "dashboard"
+      "icon": "dashboard",
+      "keepTime": true
     },
     {
       "title": "Infraestructura",
       "type": "link",
       "url": "/d/infraestructura",
-      "icon": "dashboard"
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
+      "title": "Logs",
+      "type": "link",
+      "url": "/d/logs",
+      "icon": "doc",
+      "keepTime": true
     }
   ],
   "templating": {
@@ -1083,6 +1093,56 @@
             ]
           }
         ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "FreeRADIUS → PostgreSQL (del log)",
+      "description": "Errores de rlm_sql en el log de FreeRADIUS (ruler de Loki). Con la base caída FreeRADIUS rechaza a todos y el SLI 1 no lo ve: esto sí.",
+      "gridPos": {
+        "x": 16,
+        "y": 22,
+        "w": 8,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "radius:sql_errores:rate5m * 60",
+          "legendFormat": "errores rlm_sql / min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
       },
       "options": {
         "legend": {

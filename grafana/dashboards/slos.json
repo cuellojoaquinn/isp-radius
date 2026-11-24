@@ -19,19 +19,29 @@
       "title": "Componentes",
       "type": "link",
       "url": "/d/componentes",
-      "icon": "dashboard"
+      "icon": "dashboard",
+      "keepTime": true
     },
     {
       "title": "PostgreSQL",
       "type": "link",
       "url": "/d/postgresql",
-      "icon": "dashboard"
+      "icon": "dashboard",
+      "keepTime": true
     },
     {
       "title": "Infraestructura",
       "type": "link",
       "url": "/d/infraestructura",
-      "icon": "dashboard"
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
+      "title": "Logs",
+      "type": "link",
+      "url": "/d/logs",
+      "icon": "doc",
+      "keepTime": true
     }
   ],
   "templating": {

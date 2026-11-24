@@ -299,7 +299,7 @@ Cada reconexión de abonado1 sumó 3 requests y 3 accepts: Stop de la sesión vi
 ### Pendientes
 
 - [ ] Canal de aviso (Telegram) y, a futuro, webhook del agente de diagnóstico.
-- [ ] Sistema de logs centralizado (Loki) con las mismas etiquetas `instance`/`service`.
+- [x] Sistema de logs centralizado (Loki) con las mismas etiquetas `instance`/`service` (ver 23-24/11, logs).
 - [ ] Borrar las sesiones `prueba-N` de `radacct` antes de la defensa (hace un salto falso de 24 h en el SLI 3).
 
 ## 2026-11-23 — Modelo de datos de facturación (esquema `facturacion`)
@@ -384,3 +384,41 @@ Decisiones y por qué:
 - Plan 10 megas agregado (`radgroupreply` + `tiposervicio`): un plan nuevo es tarea del **administrador** (`postgres`), porque `facturacion` no tiene permisos sobre `radgroupreply`.
 - **Mejora futura evaluada:** un frontend (Angular) para gestionar usuarios. Necesitaría una API intermedia (el navegador no habla con PostgreSQL) que llamaría a estas mismas funciones. Se dejó fuera de alcance para la defensa: la lógica ya está en las funciones, así que la arquitectura queda preparada.
 - **Menú interactivo** (`facturacion/menu.sh`): todas las operaciones en un solo lugar, cada una etiquetada con los niveles que toca (FACTURACIÓN / RADIUS / R1). Agrega "emitir factura" manual (precio vigente del plan → `monto`). La consulta de `radpostauth` entra como `postgres`, porque `facturacion` no tiene ese permiso.
+
+## 2026-11-23 al 24 — Logs: Loki, Alloy y syslog de R1
+
+**Parte:** monitoreo. Las métricas cuentan (subieron los rejects); los logs dicen **quién y por qué** (qué abonado, qué MAC, qué motivo). Ese detalle no puede ir a Prometheus: una serie por usuario o sesión explota la cardinalidad.
+
+### Decisiones
+
+- **Loki + Grafana Alloy**, un solo binario de Loki en la VM grafana (2 GB de RAM ahora), retención **14 días** porque los logs tienen datos personales (usuarios, MACs, IPs).
+- **Docker → journald → Alloy, sin socket de Docker.** Montar `/var/run/docker.sock` da la API completa (equivale a root en la VM, `:ro` no lo limita). Con `log-driver: journald` (`scripts/base.sh`) Alloy solo lee el journal en solo lectura, corre como usuario `alloy` con el grupo `systemd-journal`, y de paso recibe kernel (OOM killer), dockerd y ssh. `docker logs` sigue funcionando. El journal queda acotado (500 MB / 14 días): si Loki se cae, los logs esperan ahí y Alloy sigue desde donde quedó.
+- **Etiquetas:** `instance` y `service` iguales a Prometheus, `container` o `unit`, y `topic` en R1. Usuario/MAC/IP van en el texto, nunca como etiqueta. Las sesiones SSH (`session-12.scope`) se unifican en `session.scope` para que la etiqueta no crezca sin límite.
+- **FreeRADIUS sin `-X`.** En `-X` el log tenía **51 753 líneas para 14 pedidos**, la contraseña de la base 52 veces (una por conexión del pool) y 17 secrets sin enmascarar. Ahora `-f -l stdout` y `radiusd.conf` con `auth = yes` sin `auth_badpass`/`auth_goodpass`: una línea por login **con el motivo** (`Login incorrect (chap: Password comparison failed ...)`), 0 secretos. Para depurar se levanta `-X` a mano (README).
+- **R1 por syslog** (UDP 1514 al Alloy de la VM grafana). R2 queda afuera: es el equipo del abonado. El formato `syslog` de RouterOS es RFC 3164 pero **no incluye los tópicos**; el `default` los incluye pero sin cabecera, y Alloy solo lo acepta en modo experimental. Solución: formato `syslog` y un `prefix` por regla (`ppp`, `radius`) que llega como etiqueta `topic`.
+- **Reglas sobre los logs (ruler de Loki):** las de registro se mandan a Prometheus por remote write (`radius:sql_errores`, `radius:login_ok`, `radius:login_incorrecto`, con `or vector(0)` para que valgan 0 y no desaparezcan); las alertas van a la misma Alertmanager.
+
+### Hallazgo: punto ciego del SLI 1
+
+Probado deteniendo postgres 3 min: **FreeRADIUS no deja de responder, rechaza a todos** (`Invalid user` → `Login incorrect` → Access-Reject). Para el SLI 1 un reject es una respuesta válida, así que una caída de la base **no se veía como falla de autenticación**. Solo el log lo muestra (`Error: rlm_sql_postgresql: Connection failed`). Por eso `FreeradiusSinBase` es **page** aunque venga de un log: es un síntoma de usuario, no una causa. Inhibe los page de los SLO (los timeouts de accounting de R1 en esa caída son el mismo problema).
+
+### Pruebas
+
+- Reconexión de R2: en Loki, en la misma línea de tiempo, R1 (`logged out`, `PPPoE connection established`, `logged in, 100.64.0.100`, `authenticated`) y FreeRADIUS (`Login OK: [abonado1] (from client r1 ... cli <MAC>)`). También quedan los cambios de configuración de R1 (quién y qué).
+- `FreeradiusSinBase`: firing con postgres detenido (`radius:sql_errores` 0,087/s). Antes se creó un **silencio** en Alertmanager, como en un mantenimiento.
+- `PosibleFuerzaBruta`: R2 con la contraseña PPPoE mal → firing a los 21 rechazos en 5 min, con la MAC en el aviso.
+- `test.sh` 9/9 sin `-X` (`Ready to process requests` sigue apareciendo) y después de la caída de la base (FreeRADIUS reconecta solo).
+
+### Problemas
+
+- **Un solo pedido perdido dispara un page.** Al recrear los contenedores se perdió un Interim: con el tráfico del lab fue el 100 % de la ventana de 5 min y disparó `AutenticacionQuemaRapida`. Es el problema conocido de las alertas por tasa de quema con poco tráfico. Pendiente decidir: exigir un mínimo de pedidos en la ventana, o silenciar en los mantenimientos.
+- **Sesión fantasma** de abonado1 (21:03 del 23/11, de la prueba de caída de FreeRADIUS): `AccountingDesactualizado` la detectó; `Accounting-On` no la cerró porque R1 no se reinició. Se cerró a mano con causa `Lost-Service`.
+- Alloy cargaba también la config de ejemplo de la imagen (errores contra un Tempo inexistente): se movió nuestra config a un directorio propio.
+- La configuración nueva de CoA de facturación necesitaba `RADIUS_SECRET_FACTURACION` en `freeradius/.env` (y el mismo en `facturacion/.env`); se generó antes de recrear FreeRADIUS.
+
+### Pendientes
+
+- [ ] Mínimo de tráfico en las alertas de tasa de quema (o silencios en mantenimiento).
+- [ ] Logs de los jobs de facturación al journal (`systemd-cat -t facturacion`) para alertar si el job no corre; hoy van a `facturacion/jobs.log`.
+- [ ] `R1Reiniciado`: queda para después (falta ver qué loguea R1 al arrancar, antes de que haya red).
+

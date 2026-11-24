@@ -147,9 +147,9 @@
         <text x="680" y="535" text-anchor="middle" font-size="10" opacity="0.7">.30</text>
         <rect x="720" y="472" width="260" height="96" rx="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"/>
         <text x="736" y="497" font-size="14" font-weight="700">VM grafana</text>
-        <text x="736" y="518" font-size="11" opacity="0.8">Docker · Prometheus · Alertmanager · Grafana</text>
+        <text x="736" y="518" font-size="11" opacity="0.8">Docker · Prometheus · Alertmanager · Grafana · Loki</text>
         <text x="736" y="536" font-size="11" opacity="0.8">10.10.10.30</text>
-        <text x="736" y="554" font-size="11" opacity="0.6">lee R1 por API · exporters de db y freeradius</text>
+        <text x="736" y="554" font-size="11" opacity="0.6">lee R1 por API · exporters · logs (Alloy, syslog R1)</text>
 
         <!-- ===== Shared Network UTM ===== -->
         <text x="1075" y="104" text-anchor="middle" font-size="13" font-weight="700">Shared Network</text>
@@ -191,7 +191,7 @@
       <tr><td>R1 (sesiones)</td><td><code>&lt;pppoe-…&gt;</code></td><td>—</td><td>local <code>100.64.0.1</code> · pool <code>100.64.0.10–100</code></td><td>una interfaz dinámica por abonado</td></tr>
       <tr><td>VM freeradius</td><td><code>enp0s2</code> / <code>enp0s1</code></td><td>gestion / Shared</td><td><code>10.10.10.10/24</code> / <code>192.168.64.15</code></td><td>FreeRADIUS en Docker</td></tr>
       <tr><td>VM db</td><td><code>enp0s2</code> / <code>enp0s1</code></td><td>gestion / Shared</td><td><code>10.10.10.20/24</code> / DHCP</td><td>PostgreSQL en Docker</td></tr>
-      <tr><td>VM grafana</td><td><code>eth1</code> / <code>eth0</code></td><td>gestion / NAT</td><td><code>10.10.10.30/24</code></td><td>Prometheus, Alertmanager, Grafana, mktxp, r1-exporter</td></tr>
+      <tr><td>VM grafana</td><td><code>eth1</code> / <code>eth0</code></td><td>gestion / NAT</td><td><code>10.10.10.30/24</code></td><td>Prometheus, Alertmanager, Grafana, Loki, mktxp, r1-exporter</td></tr>
     </tbody>
   </table>
 
@@ -209,6 +209,9 @@
           <tr><td>grafana <code>.30</code></td><td>todas las VMs</td><td>TCP 9100 (node-exporter)</td></tr>
           <tr><td>grafana <code>.30</code></td><td>db <code>.20</code></td><td>TCP 9187 (postgres-exporter)</td></tr>
           <tr><td>grafana <code>.30</code></td><td>freeradius <code>.10</code></td><td>TCP 9812 (freeradius-exporter)</td></tr>
+          <tr><td>grafana <code>.30</code></td><td>todas las VMs</td><td>TCP 12345 (métricas de Alloy)</td></tr>
+          <tr><td>Alloy de db y freeradius</td><td>grafana <code>.30</code></td><td>TCP 3100 (Loki: envío de logs)</td></tr>
+          <tr><td>R1 <code>.1</code></td><td>grafana <code>.30</code></td><td>UDP 1514 (syslog hacia Alloy)</td></tr>
         </tbody>
       </table>
     </div>

@@ -10,7 +10,7 @@ ISP de laboratorio: los abonados se conectan por **PPPoE** a un **MikroTik (R1)*
 ```
 ├── Vagrantfile              VMs db, freeradius y grafana (VirtualBox)
 ├── scripts/
-│   ├── base.sh              provisión común: DNS fijo + Docker
+│   ├── base.sh              provisión común: DNS fijo, Docker y logs al journal
 │   ├── test.sh              prueba automática del lab (corre al levantar freeradius)
 │   ├── crear-chr.sh         crea R1 o R2 (MikroTik CHR) en VirtualBox
 │   ├── configurar-chr.sh    aplica mikrotik/*.rsc por consola serie
@@ -18,7 +18,9 @@ ISP de laboratorio: los abonados se conectan por **PPPoE** a un **MikroTik (R1)*
 ├── freeradius/              compose, clients.conf, módulo sql, virtual server status, exporter
 ├── db/                      compose, pg_hba.conf, init/ (esquema, usuarios, datos), exporter/queries.yml
 ├── grafana/                 monitoreo: Prometheus (reglas y tests), Alertmanager, Grafana
-│   │                        (datasources y dashboards), mktxp y r1-exporter
+│   │                        (datasources y dashboards), mktxp, r1-exporter, Loki (logs y
+│   │                        sus reglas) y el syslog de R1
+├── alloy/                   recolector de logs (Alloy), config compartida por las tres VMs
 └── mikrotik/                exports de R1 y R2, usuario de monitoreo de R1
 ```
 
@@ -118,6 +120,9 @@ La red `gestion` es interna de VirtualBox: el Vagrantfile redirige las interface
 - **Componentes** — causas: cuatro señales doradas de R1 (cliente RADIUS y servidor PPPoE) y FreeRADIUS, incluido el cruce *NAS vs servidor*.
 - **PostgreSQL** — cuatro señales doradas de la base, estado del accounting y últimas sesiones (SQL directo).
 - **Infraestructura** — CPU, memoria, disco y red de las VMs.
+- **Logs** — volumen y errores por servicio, logins de FreeRADIUS (filtrables por usuario o MAC), PostgreSQL, eventos de R1 (PPPoE, RADIUS, cambios de config) y kernel/sistema de las VMs.
+
+Todos tienen links entre sí que conservan el rango de tiempo: de un pico en un gráfico se salta a los logs de ese momento.
 
 **Qué mide quién:**
 
@@ -129,7 +134,22 @@ La red `gestion` es interna de VirtualBox: el Vagrantfile redirige las interface
 | postgres-exporter | db | `pg_stat_*` y `db/exporter/queries.yml` | base, SLI 3 y 4 |
 | node-exporter | las tres | sistema operativo | disco, memoria, CPU |
 
-**Alertas** (`grafana/prometheus/rules/`): por síntoma con tasa de quema multiventana (`slo.yml`), saturación al 80 % (`saturacion.yml`) y monitoreo ciego (`infraestructura.yml`). Cada una tiene un `runbook` con el diagnóstico. Todavía sin canal de aviso: se ven en Alertmanager y en Grafana.
+**Logs** (Loki, 14 días). Las métricas cuentan; los logs dicen quién y por qué.
+
+```
+contenedores ─stdout─► Docker ─journald─► journal de la VM ◄─ Alloy ─┐
+kernel, dockerd, ssh ─────────────────────► (500 MB / 14 d)          ├─► Loki (VM grafana) ◄── Grafana
+R1 ─syslog UDP 1514─► Alloy de la VM grafana ────────────────────────┘     │ ruler
+                                                                            ├─ métricas ─► Prometheus
+                                                                            └─ alertas ──► Alertmanager
+```
+
+- Etiquetas: `instance` y `service` (las mismas que en Prometheus), `container` o `unit` (sistema), y en R1 `topic` (`ppp`, `radius`, `sistema`). Usuario, MAC e IP **no** son etiquetas: se filtran en el texto (`{container="freeradius"} |= "abonado1"`).
+- FreeRADIUS corre sin `-X`: una línea por login con el motivo (`Login incorrect (chap: Password comparison failed ...)`), sin contraseñas.
+- Reglas sobre los logs (`grafana/loki/rules/fake/radius.yml`): métricas `radius:sql_errores`, `radius:login_ok`, `radius:login_incorrecto`; alertas `FreeradiusSinBase` (page) y `PosibleFuerzaBruta` (ticket).
+- **Punto ciego del SLI 1 que cubren los logs:** con PostgreSQL caído FreeRADIUS no deja de responder, rechaza a todos (`Invalid user`), y para el SLI 1 un reject es una respuesta. Solo el log (`Error: rlm_sql ...`) lo muestra.
+
+**Alertas** (`grafana/prometheus/rules/` y `grafana/loki/rules/`): por síntoma con tasa de quema multiventana (`slo.yml`), saturación al 80 % (`saturacion.yml`) y monitoreo ciego (`infraestructura.yml`). Cada una tiene un `runbook` con el diagnóstico. Todavía sin canal de aviso: se ven en Alertmanager y en Grafana.
 
 Tests de las reglas con series sintéticas:
 
@@ -138,7 +158,9 @@ docker run --rm --entrypoint promtool -v "$PWD/grafana/prometheus:/etc/prometheu
   prom/prometheus:v3.5.0 test rules /etc/prometheus/tests/reglas_test.yml
 ```
 
-Prometheus relee su configuración y reglas sin reiniciar: `curl -X POST localhost:9090/-/reload`.
+Prometheus relee su configuración y reglas sin reiniciar: `curl -X POST localhost:9090/-/reload`. Loki relee sus reglas solo (cada 1 min).
+
+En VMs creadas antes de los logs: `vagrant provision <vm> --provision-with base` y en la VM `docker-compose up -d --force-recreate` (el log driver se fija al crear el contenedor).
 
 ## Notas
 
