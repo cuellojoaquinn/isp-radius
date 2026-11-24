@@ -177,11 +177,12 @@ Mapeo red UTM ↔ interfaz hecho comparando MACs (UTM *Edit → Network* vs `/in
 ### Pendientes
 
 - [x] Paso 1: FreeRADIUS en Docker con usuario de prueba en archivo + probar con `radtest`.
-- [ ] Dar de alta el RADIUS en R1 (`/radius`) y activar `use-radius` + `interim-update`.
-- [ ] Decidir quién define el plan: `Mikrotik-Group` (perfil local) vs atributos directos (`Mikrotik-Rate-Limit`, `Framed-Pool`).
-- [ ] Probar qué pasa con los abonados si se cae el RADIUS (conectado vs conectándose).
-- [ ] Sumar PostgreSQL (coordinar esquema con quien hace Grafana).
+- [x] Dar de alta el RADIUS en R1 (`/radius`) y activar `use-radius` + `interim-update`.
+- [x] Decidir quién define el plan: velocidad por RADIUS (`Mikrotik-Rate-Limit`), pool en el router (19/11).
+- [x] Probar qué pasa con los abonados si se cae el RADIUS (conectado vs conectándose) (19/11; medido con alertas el 23/11).
+- [x] Sumar PostgreSQL (coordinar esquema con quien hace Grafana).
 - [x] Repo + Vagrant (VirtualBox) + secretos en .env.
+- [x] Monitoreo: Prometheus, Alertmanager, Grafana y exporters (20–23/11).
 
 ## 2026-11-19 (tarde) — Configs de MikroTik al repo
 
@@ -224,3 +225,79 @@ Flujo resultante:
 - La separación real la dan los **permisos** del usuario `facturacion` (contrato acotado), no el esquema en sí.
 - El **job** es un proceso que corre en la **VM db** y se conecta a la base (no vive dentro de PostgreSQL).
 - Pendiente: definir las tablas mínimas del esquema y los `GRANT` exactos del usuario `facturacion`.
+
+## 2026-11-20 al 23 — Monitoreo: Prometheus, Alertmanager y Grafana
+
+**Parte:** monitoreo y alertas. Qué mostrar viene de la investigación del 18/11 (bitácora en Drive): SRE de Google, cuatro señales doradas por componente, SLIs/SLOs con presupuesto de error y alertas por síntoma.
+
+### Decisiones de arquitectura
+
+- **Prometheus no es una capa delante de PostgreSQL.** Es una base de series de tiempo: guarda una foto de cada métrica cada 15 s. Los datos de negocio (quién se conectó, cuánto consumió) se consultan en `radacct` por SQL. Prometheus resuelve lo que la base no tiene: **historia** de contadores que solo existen "ahora" (`/radius monitor` de R1 es acumulado desde que arrancó el router; sin Prometheus no hay ventana de 5 min ni de 30 días).
+- **Alertmanager en lugar de las alertas de Grafana.** Las reglas viven en Prometheus (YAML en el repo, con tests) y Alertmanager agrupa, inhibe y rutea. Motivos: el aviso no depende de Grafana (la pieza más pesada), y a futuro el sistema de logs (Loki) y el agente de diagnóstico se enchufan al mismo punto (Loki manda sus alertas a Alertmanager; el agente recibe un webhook con etiquetas para consultar Prometheus/Loki). Costo: los SLI que viven en SQL (3 y 4) se pasan a Prometheus con consultas propias de postgres-exporter.
+- **Etiquetas comunes** `instance` (db, freeradius, grafana, r1) y `service` (radius, db, pppoe, monitoreo) desde ahora, para cruzar métricas con logs cuando esté Loki.
+- **Qué va en cada VM:** cada exporter vive junto a lo que mide (postgres-exporter en db, freeradius-exporter en freeradius) y entra por la red interna de Docker; lo que lee R1 por la API (mktxp, r1-exporter) va en la VM grafana. Todos los puertos de exporters se publican solo en la IP de gestión.
+- **Sin canal de aviso por ahora** (Telegram queda para más adelante): las alertas se ven en Alertmanager y Grafana. Las rutas `page`/`ticket` ya están armadas; sumar un canal es agregar un receiver.
+
+### Fuentes de cada indicador
+
+| SLI | Fuente | Exporter |
+|---|---|---|
+| 1 disponibilidad `(accepts+rejects)/requests` | `/radius monitor` de R1 | r1-exporter (propio) |
+| 2 latencia `1 - resends/requests` | `/radius monitor` de R1 | r1-exporter |
+| 3 estabilidad (cortes normales) | `radacct.acctterminatecause` | postgres-exporter (`queries.yml`) |
+| 4 frescura del accounting | `radacct.acctupdatetime` de sesiones abiertas | postgres-exporter |
+
+- **mktxp no cubre RADIUS ni PPP** (verificado dentro de la imagen 2.1.0, no solo en el README): se usa para CPU, memoria, interfaces, pool y colas. `/radius monitor` y `/ppp active` los lee un exporter propio en Python (`grafana/r1-exporter/`), por la misma API binaria (8728) que mktxp: en R1 se habilita un solo servicio.
+- **freeradius-exporter** (sin imagen oficial; se compila desde el tag 0.2.0) consulta el virtual server `status`. El README dice "3.0.x" pero funciona con 3.2. Permite cruzar lo que vio el NAS con lo que recibió el servidor: en una reconexión real, R1 mandó 3 pedidos y FreeRADIUS registró 1 de auth y 2 de accounting.
+
+### Problemas y cómo los diagnosticamos
+
+**1. El SLI 3 daba `NaN` con dos cortes registrados.** `increase()` necesita dos muestras: una serie que *aparece* con valor 1 toma ese 1 como punto de partida. En producción, el primer corte de cada causa nueva no se contaría nunca. Arreglo: la consulta devuelve siempre las 10 causas conocidas, en 0 si no hubo cortes. Verificado: un corte `NAS-Reboot` pasó de 0 a 1 y se contó. (`increase()` dio 1,077 y no 1: extrapola a toda la ventana.)
+
+**2. `/radius monitor` por la API daba `not enough permissions (9)`** con un usuario `read,api` que sí podía leer `/radius print` y `/ppp active`. Se probó comando por comando desde el contenedor: el `monitor` pide la policy `test` (diagnóstico, no cambia configuración).
+
+**3. Etiqueta `service` pisada.** La métrica de sesiones PPP usaba una etiqueta `service`, que choca con la que agrega Prometheus: aparecía como `exported_service`. Se renombró a `ppp_service`.
+
+**4. mktxp en bucle de reinicio:** `cp: can't stat '/etc/mktxp/_mktxp.conf'`. Ese archivo no está en la imagen: lo crea mktxp la primera vez que arranca (en una prueba anterior se había visto porque antes se corrió `mktxp --help`). Se dejó que lo cree solo.
+
+**5. Vagrant no arrancaba ninguna VM** (`VBoxManage ... E_ACCESSDENIED`): había una VM `<inaccessible>` registrada en VirtualBox cuyo directorio ya no existía, y Vagrant consulta todas. Se desregistró (no había disco que borrar).
+
+### R1 y R2 reproducibles (VirtualBox)
+
+- `scripts/crear-chr.sh r1|r2` crea el CHR 7.20.4 con las NICs en el orden que esperan los exports; `scripts/configurar-chr.sh r1|r2` aplica `mikrotik/*.rsc` por consola serie (socket unix local, sin red: el router no tiene IP todavía) y completa lo que el export oculta desde los `.env`.
+- **Tres diferencias entre un CHR nuevo y un export**, descubiertas al aplicar los exports en limpio:
+  - El intercambio de nombres ether2 ↔ ether3 del export choca en el primer `set` (el mismo choque que el incidente del 19/11): se renombra antes a un nombre temporal. Por lo mismo, R2 va con 2 NICs (con una tercera, su rename a ether3 choca).
+  - Un CHR nuevo trae un `dhcp-client` en ether1 y el export no lo menciona (solo describe lo agregado): R1 habría quedado pidiendo DHCP en la red de gestión. Se borra antes de aplicar el export.
+  - La consola de 80 columnas recorta las líneas largas y el script perdía el prompt: se entra como `admin+cte1000w` (sin colores, sin detección de terminal, ancho 1000).
+- R2: NIC1 desconectada. En UTM salía a internet por `dhcp-client`; acá daría una segunda ruta por defecto compitiendo con la de PPPoE.
+
+### Hallazgo: `/radius monitor` cuenta también el accounting
+
+Cada reconexión de abonado1 sumó 3 requests y 3 accepts: Stop de la sesión vieja + Access-Request + Start. Eso explicó el "1 request, 1 accept" que R1 mostraba al arrancar sin abonados: era el `Accounting-On`. Para el SLI 1 está bien (un accounting sin respuesta también es el servicio fallando), pero "accepts" de MikroTik no son solo Access-Accept.
+
+### Alertas
+
+- **Síntoma, tasa de quema multiventana** (SRE workbook): *page* si la tasa de quema supera 14,4 en 1 h **y** en 5 min (2 % del presupuesto mensual en una hora); *ticket* si supera 6 en 6 h y en 30 min. La ventana corta hace que la alerta se apague apenas se resuelve.
+- **Saturación al 80 %:** disco, conexiones de PostgreSQL, pool `pool-pppoe`.
+- **Causas no alertan**, salvo quedarse ciego (exporter caído, R1 sin API): RTT, CPU, bad-replies van a los dashboards y a los runbooks.
+- **Inhibiciones:** un page de un SLO calla el ticket del mismo SLO; si cae el node-exporter de una VM, se callan las demás caídas de esa VM.
+- **Tests** (`grafana/prometheus/tests/reglas_test.yml`, `promtool test rules`): RADIUS caído → page; servicio sano, sin tráfico o sin sesiones → nada; sesión sin Interim 15 min → page; pool al 82 % → ticket.
+- Con poco tráfico, una ventana sin pedidos da `NaN` y la alerta no dispara: no hay pedidos fallando, no hay síntoma.
+
+### Prueba: FreeRADIUS caído, ahora medido
+
+- Se apagó el contenedor de FreeRADIUS y se forzó la reconexión de abonado1. `AutenticacionQuemaRapida` pasó a *firing* a los **2 min 30 s** y llegó a Alertmanager ("Los abonados no se pueden autenticar (67.86% de pedidos sin respuesta en 1 h)").
+- El cruce NAS/servidor diagnosticó solo: R1 con 21 timeouts en 5 min, FreeRADIUS con 0 pedidos recibidos y `freeradius_up = 0`. El runbook se corrigió para distinguir "servidor caído" (`freeradius_up == 0`) de "red" (`freeradius_up == 1` y no llegan pedidos).
+- El target `freeradius` seguía `up`: el que responde es el exporter, no el servidor. Por eso el estado del servidor se mira con `freeradius_up`.
+
+### Prueba no planeada: reinicio de la computadora (23/11)
+
+- Las VMs no arrancan solas. Al levantar todo, `AccountingDesactualizado` pasó por *pending*: la sesión de abonado1 había quedado abierta en `radacct` sin Stop (R1 se apagó de golpe). R1 mandó `Accounting-On` al arrancar y FreeRADIUS la cerró; el `for: 15m` evitó un aviso falso.
+- R1 registró 2 timeouts al arrancar aunque FreeRADIUS ya estaba arriba: R1 manda sus primeros pedidos antes de que la interfaz de gestión esté lista.
+- Orden de arranque: primero `vagrant up` (servidores), después R1 y R2. Al revés, R2 intenta conectarse sin servidor y el SLI 1 registra fallas.
+
+### Pendientes
+
+- [ ] Canal de aviso (Telegram) y, a futuro, webhook del agente de diagnóstico.
+- [ ] Sistema de logs centralizado (Loki) con las mismas etiquetas `instance`/`service`.
+- [ ] Borrar las sesiones `prueba-N` de `radacct` antes de la defensa (hace un salto falso de 24 h en el SLI 3).

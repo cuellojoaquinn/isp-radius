@@ -73,9 +73,9 @@
         <!-- abonado2 -->
         <rect x="30" y="360" width="180" height="90" rx="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"/>
         <text x="46" y="384" font-size="14" font-weight="700">abonado2</text>
-        <text x="46" y="403" font-size="11" opacity="0.75">usuario local (/ppp secret)</text>
-        <text x="46" y="421" font-size="11" opacity="0.75">perfil plan-50m</text>
-        <text x="46" y="439" font-size="11" opacity="0.6" font-style="italic">pendiente migrar</text>
+        <text x="46" y="403" font-size="11" opacity="0.75">en la base (radcheck)</text>
+        <text x="46" y="421" font-size="11" opacity="0.75">plan-50m (radusergroup)</text>
+        <text x="46" y="439" font-size="11" opacity="0.6" font-style="italic">sin router en el lab</text>
         <line x1="210" y1="405" x2="270" y2="405" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"/>
 
         <!-- ===== R1 ===== -->
@@ -134,22 +134,22 @@
         <text x="736" y="325" font-size="14" font-weight="700">VM db</text>
         <text x="736" y="346" font-size="11" opacity="0.8">Docker · PostgreSQL 16</text>
         <text x="736" y="364" font-size="11" opacity="0.8">5432 publicado solo en 10.10.10.20</text>
-        <text x="736" y="382" font-size="11" opacity="0.8">pg_hba: radius ← .10 · grafana ← .30</text>
+        <text x="736" y="382" font-size="11" opacity="0.8">pg_hba: radius ← .10 · grafana ← .30 · exporter ← Docker</text>
         <text x="736" y="400" font-size="11" opacity="0.8">radcheck · radgroupreply · radacct …</text>
 
-        <!-- flujo grafana -> db (pendiente) -->
-        <line x1="850" y1="470" x2="850" y2="416" stroke="#c2410c" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arr)"/>
+        <!-- flujo grafana -> db -->
+        <line x1="850" y1="470" x2="850" y2="416" stroke="#c2410c" stroke-width="2" marker-end="url(#arr)"/>
         <text x="860" y="440" font-size="11" fill="#c2410c" font-weight="700">④ SELECT</text>
         <text x="860" y="455" font-size="10" fill="#c2410c">usuario grafana</text>
 
         <!-- grafana -->
-        <line x1="640" y1="520" x2="720" y2="520" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <line x1="640" y1="520" x2="720" y2="520" stroke="currentColor" stroke-width="1.5"/>
         <text x="680" y="535" text-anchor="middle" font-size="10" opacity="0.7">.30</text>
         <rect x="720" y="472" width="260" height="96" rx="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"/>
         <text x="736" y="497" font-size="14" font-weight="700">VM grafana</text>
-        <text x="736" y="518" font-size="11" opacity="0.8">Docker · Grafana (otro integrante)</text>
+        <text x="736" y="518" font-size="11" opacity="0.8">Docker · Prometheus · Alertmanager · Grafana</text>
         <text x="736" y="536" font-size="11" opacity="0.8">10.10.10.30</text>
-        <text x="736" y="554" font-size="11" opacity="0.6" font-style="italic">pendiente · métricas de R1 a definir</text>
+        <text x="736" y="554" font-size="11" opacity="0.6">lee R1 por API · exporters de db y freeradius</text>
 
         <!-- ===== Shared Network UTM ===== -->
         <text x="1075" y="104" text-anchor="middle" font-size="13" font-weight="700">Shared Network</text>
@@ -177,7 +177,7 @@
       <li><strong>① PPPoE</strong> — descubrimiento y LCP con R1; el abonado presenta usuario y contraseña (hoy se negocia MS-CHAPv2; el servidor ofrece pap, chap, mschap1 y mschap2).</li>
       <li><strong>② RADIUS</strong> — R1 manda un <code>Access-Request</code> a <code>10.10.10.10:1812</code> firmado con el shared secret. Si recibe <code>Access-Accept</code>, asigna IP del pool (IPCP) y crea la cola con el <code>Mikrotik-Rate-Limit</code> recibido. Después manda accounting a <code>:1813</code>: Start, Interim cada 5 min y Stop.</li>
       <li><strong>③ SQL</strong> — FreeRADIUS busca la contraseña en <code>radcheck</code>, el plan en <code>radusergroup</code> y la velocidad en <code>radgroupreply</code>; registra el intento en <code>radpostauth</code> y el accounting en <code>radacct</code> (una fila por sesión: INSERT en Start, UPDATE en Interim/Stop).</li>
-      <li><strong>④ Grafana</strong> <span class="tag">pendiente</span> — lee <code>radacct</code> y compañía con un usuario de solo lectura, sin acceso a <code>radcheck</code>.</li>
+      <li><strong>④ Monitoreo</strong> — Prometheus (VM grafana) lee cada 15 s los exporters: <code>/radius monitor</code> y <code>/ppp active</code> de R1 por la API (SLI 1 y 2), el Status-Server de FreeRADIUS (lo que recibió el servidor) y <code>radacct</code> vía postgres-exporter (SLI 3 y 4). Evalúa las alertas por SLO y se las pasa a Alertmanager. Grafana muestra Prometheus y, para el detalle de sesiones, lee <code>radacct</code> directo con un usuario de solo lectura, sin acceso a <code>radcheck</code>.</li>
     </ol>
   </div>
 
@@ -191,7 +191,7 @@
       <tr><td>R1 (sesiones)</td><td><code>&lt;pppoe-…&gt;</code></td><td>—</td><td>local <code>100.64.0.1</code> · pool <code>100.64.0.10–100</code></td><td>una interfaz dinámica por abonado</td></tr>
       <tr><td>VM freeradius</td><td><code>enp0s2</code> / <code>enp0s1</code></td><td>gestion / Shared</td><td><code>10.10.10.10/24</code> / <code>192.168.64.15</code></td><td>FreeRADIUS en Docker</td></tr>
       <tr><td>VM db</td><td><code>enp0s2</code> / <code>enp0s1</code></td><td>gestion / Shared</td><td><code>10.10.10.20/24</code> / DHCP</td><td>PostgreSQL en Docker</td></tr>
-      <tr><td>VM grafana</td><td>—</td><td>gestion / Shared</td><td><code>10.10.10.30/24</code></td><td class="pend">pendiente</td></tr>
+      <tr><td>VM grafana</td><td><code>eth1</code> / <code>eth0</code></td><td>gestion / NAT</td><td><code>10.10.10.30/24</code></td><td>Prometheus, Alertmanager, Grafana, mktxp, r1-exporter</td></tr>
     </tbody>
   </table>
 
@@ -204,8 +204,11 @@
           <tr><td>abonados</td><td>R1</td><td>PPPoE (capa 2)</td></tr>
           <tr><td>R1 <code>.1</code></td><td>freeradius <code>.10</code></td><td>UDP 1812, 1813</td></tr>
           <tr><td>freeradius <code>.10</code></td><td>db <code>.20</code></td><td>TCP 5432</td></tr>
-          <tr><td>grafana <code>.30</code></td><td>db <code>.20</code></td><td>TCP 5432 <span class="tag">pend.</span></td></tr>
-          <tr><td>grafana <code>.30</code></td><td>R1 <code>.1</code></td><td class="pend">a definir (SNMP / syslog / API)</td></tr>
+          <tr><td>grafana <code>.30</code></td><td>db <code>.20</code></td><td>TCP 5432 (Grafana, SQL)</td></tr>
+          <tr><td>grafana <code>.30</code></td><td>R1 <code>.1</code></td><td>TCP 8728 (API RouterOS, usuario <code>monitor</code>)</td></tr>
+          <tr><td>grafana <code>.30</code></td><td>todas las VMs</td><td>TCP 9100 (node-exporter)</td></tr>
+          <tr><td>grafana <code>.30</code></td><td>db <code>.20</code></td><td>TCP 9187 (postgres-exporter)</td></tr>
+          <tr><td>grafana <code>.30</code></td><td>freeradius <code>.10</code></td><td>TCP 9812 (freeradius-exporter)</td></tr>
         </tbody>
       </table>
     </div>
@@ -217,6 +220,7 @@
           <tr><td><code>postgres</code></td><td>solo dentro del contenedor</td><td>todo</td></tr>
           <tr><td><code>radius</code></td><td><code>10.10.10.10</code></td><td>leer config de abonados; INSERT/UPDATE en <code>radacct</code>, <code>radpostauth</code>; sin DELETE</td></tr>
           <tr><td><code>grafana</code></td><td><code>10.10.10.30</code></td><td>solo SELECT; sin <code>radcheck</code></td></tr>
+          <tr><td><code>exporter</code></td><td>red Docker de db</td><td><code>pg_monitor</code> + SELECT en <code>radacct</code>, <code>radpostauth</code></td></tr>
         </tbody>
       </table>
     </div>
