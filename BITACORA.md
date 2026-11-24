@@ -348,3 +348,14 @@ Decisiones y por qué:
   - `proxy.conf`: `home_server r1-coa` (`type = coa`, `10.10.10.1:3799`, secret de R1, reintentos `irt/mrt/mrc/mrd`) y `home_server_pool r1-coa-pool`.
   - Sitio `coa` (plantilla de la imagen): `listen type = coa` en 3799 y `recv-coa { update control { &Home-Server-Pool := "r1-coa-pool" } }`. Se quitó `suffix` (no usamos realms).
 - **Limitación conocida:** todas las órdenes van a `r1-coa-pool`. Con **varios routers**, habría que elegir el destino según **en qué NAS está la sesión abierta** (`radacct.nasipaddress` con `acctstoptime IS NULL`), con un pool por router o fijando el destino a partir de ese dato.
+- **Decisión:** el job **consulta primero** `radacct` (sesión abierta: `acctstoptime IS NULL`) y manda el Disconnect solo si hay sesión. Esa misma consulta da el NAS (`nasipaddress`). Si no hay sesión, alcanza con el cambio de grupo (y si se mandara igual, R1 respondería `Disconnect-NAK`). Implica que el usuario `facturacion` necesita `SELECT` sobre `radacct`.
+- Tramo 2, piezas restantes: `clients.conf` con el cliente `facturacion` (`10.10.10.20`, **secret propio**, distinto del de R1: si se roba, permite pedirle cortes a FreeRADIUS pero no hablarle directo a R1); compose con el puerto `3799/udp` publicado y los montajes `sites-enabled/coa` y `proxy.conf`. Verificado: `Listening on coa address * port 3799 bound to server coa`.
+- **Problema:** `radclient` desde la VM db → `No reply from server`. Diagnóstico por tramos:
+  1. `docker ps`: 3799/udp publicado ✅. `Listening on coa` ✅.
+  2. `tcpdump -ni enp0s2 udp port 3799`: los paquetes **llegan** a la VM desde `10.10.10.20` ✅.
+  3. `tcpdump -ni any`: Docker los reenvía al contenedor (`br-…` → `veth…` → `172.18.0.2`), conservando el origen ✅. No salía nada hacia R1 ni hacia `.20`: **FreeRADIUS los descartaba en silencio**.
+  4. Log **sin filtro**: `Insecure packet from host 10.10.10.20: Packet does not contain required Message-Authenticator attribute`. Protección **BlastRADIUS**: FreeRADIUS exige la firma `Message-Authenticator`.
+  - Los filtros de `grep` no lo mostraban porque el mensaje dice `Receive`, no `Received`. **Lección: si el filtro no muestra nada, mirar el log sin filtrar.**
+  - Solución correcta: **firmar la orden** (`Message-Authenticator = 0x00` en el pedido; `radclient` la calcula con el secret). Se descartó `require_message_authenticator = no`, que baja la seguridad.
+- **Tramo 2 ✅:** `printf 'User-Name = abonado1\nMessage-Authenticator = 0x00\n' | radclient 10.10.10.10:3799 disconnect <secret-facturacion>` desde la VM db → Disconnect-ACK, y abonado1 cortado vía FreeRADIUS → R1. **El job tiene que incluir `Message-Authenticator` en cada orden.**
+- Repo actualizado: `freeradius/coa`, `freeradius/proxy.conf` (plantilla 3.2.10 + `r1-coa`), cliente `facturacion` y `RADIUS_SECRET_FACTURACION` en `.env.example`, puerto 3799 en el compose y `/radius incoming` en `mikrotik/README.md`.

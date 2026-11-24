@@ -31,5 +31,6 @@ Configuración clave de R1 para RADIUS:
 /ppp profile add name=pppoe-base-radius local-address=100.64.0.1 remote-address=pool-pppoe
 /interface pppoe-server server set [find service-name=isp] default-profile=pppoe-base-radius
 /ppp aaa set use-radius=yes accounting=yes interim-update=5m
+/radius incoming set accept=yes port=3799   # acepta Disconnect/CoA de FreeRADIUS
 /system logging add topics=radius,debug action=memory
 ```

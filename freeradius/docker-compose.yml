@@ -8,10 +8,13 @@ services:
     ports:
       - "1812:1812/udp"        # autenticación
       - "1813:1813/udp"        # accounting
+      - "3799:3799/udp"        # órdenes CoA / Disconnect (de facturación)
     volumes:
       - ./clients.conf:/etc/raddb/clients.conf:ro
       - ./authorize:/etc/raddb/mods-config/files/authorize:ro
       - ./sql:/etc/raddb/mods-enabled/sql:ro
+      - ./coa:/etc/raddb/sites-enabled/coa:ro
+      - ./proxy.conf:/etc/raddb/proxy.conf:ro
       - ./status:/etc/raddb/sites-enabled/status:ro   # estadísticas para el exporter
     networks: [interna]
 

@@ -1,0 +1,21 @@
+# Recibe órdenes CoA / Disconnect (de facturación) y las reenvía a R1
+listen {
+	type = coa
+	ipaddr = *
+	port = 3799
+	virtual_server = coa
+}
+
+server coa {
+	recv-coa {
+		# Reenviar (proxy) la orden al pool definido en proxy.conf
+		update control {
+			&Home-Server-Pool := "r1-coa-pool"
+		}
+		ok
+	}
+
+	send-coa {
+		ok
+	}
+}
