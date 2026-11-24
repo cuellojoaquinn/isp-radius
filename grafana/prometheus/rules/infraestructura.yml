@@ -1,4 +1,6 @@
-# Reglas mínimas del paso 1. Las de SLOs y saturación se suman en el paso 5.
+# Alertas de "estoy ciego": sin estos datos no se puede ver el servicio.
+# Son las únicas causas que alertan (accionables y dejan sin visibilidad); el resto
+# de las causas (CPU, RTT, bad-replies, bloqueos) se muestran en los dashboards.
 groups:
   - name: infraestructura
     rules:
@@ -11,6 +13,22 @@ groups:
           summary: "{{ $labels.job }} en {{ $labels.instance }} no responde"
           description: "Prometheus no puede leer {{ $labels.job }} en {{ $labels.instance }} hace más de 2 minutos."
           runbook: >-
-            1) ¿La VM está prendida? (vagrant status).
+            1) ¿La VM está prendida? (vagrant status; R1/R2: VBoxManage list runningvms).
             2) ¿El contenedor corre? (vagrant ssh {{ $labels.instance }} -c 'docker ps').
-            3) Si corre, ¿responde el puerto desde la VM grafana? (curl {{ $labels.instance }}:puerto/metrics).
+            3) Si corre, ¿responde el puerto desde la VM grafana?
+            Si cae el job "node" de una VM, Alertmanager calla las demás caídas de esa VM (inhibición).
+
+      # El exporter responde pero no puede leer R1 (R1 apagado, API cerrada o usuario monitor mal)
+      - alert: R1SinAcceso
+        expr: routeros_exporter_up == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "r1-exporter no puede leer R1 por la API"
+          description: "Sin datos de /radius monitor no se pueden calcular los SLI 1 y 2."
+          runbook: >-
+            1) ¿R1 prendido? VBoxManage list runningvms | grep isp-radius_r1.
+            2) docker logs r1-exporter en la VM grafana: "not enough permissions" -> policy del grupo
+               monitoreo (read,api,test); "invalid user name or password" -> R1_API_PASSWORD de grafana/.env.
+            3) /ip service print en R1: api habilitada y con address=10.10.10.30/32.

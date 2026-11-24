@@ -1,0 +1,134 @@
+# Tests de las reglas de alerta con series sintéticas.
+# Correr:  docker run --rm --entrypoint promtool -v "$PWD/grafana/prometheus:/etc/prometheus:ro" \
+#            prom/prometheus:v3.5.0 test rules /etc/prometheus/tests/reglas_test.yml
+rule_files:
+  - ../rules/slo.yml
+  - ../rules/saturacion.yml
+  - ../rules/infraestructura.yml
+
+evaluation_interval: 1m
+
+tests:
+  # 1. RADIUS caído: R1 manda 3 pedidos por minuto y no vuelve ninguna respuesta.
+  - name: radius caido -> page de disponibilidad
+    interval: 1m
+    input_series:
+      - series: 'routeros_radius_requests_total{radius="10.10.10.10"}'
+        values: '0+3x30'
+      - series: 'routeros_radius_accepts_total{radius="10.10.10.10"}'
+        values: '0x30'
+      - series: 'routeros_radius_rejects_total{radius="10.10.10.10"}'
+        values: '0x30'
+      - series: 'routeros_radius_resends_total{radius="10.10.10.10"}'
+        values: '0x30'
+    promql_expr_test:
+      - expr: slo:radius_auth_errores:ratio_rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:radius_auth_errores:ratio_rate5m'
+            value: 1
+    alert_rule_test:
+      - eval_time: 1m          # todavía en "for: 2m": no dispara
+        alertname: AutenticacionQuemaRapida
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: AutenticacionQuemaRapida
+        exp_alerts:
+          - exp_labels: { severity: page, service: radius, slo: disponibilidad }
+            exp_annotations:
+              summary: "Los abonados no se pueden autenticar (100% de pedidos sin respuesta en 1 h)"
+              description: "SLI 1 por debajo del SLO 99,9 %: a este ritmo el presupuesto de error del mes se agota en menos de 2 días."
+              runbook: >-
+                Síntoma: R1 manda pedidos y no recibe respuesta. Cruzar en el dashboard "Componentes":
+                1) routeros_radius_timeouts sube y freeradius_total_access_requests NO sube -> no llega al servidor.
+                   Si freeradius_up == 0, FreeRADIUS está caído (docker ps en la VM freeradius);
+                   si freeradius_up == 1, es la red de gestión o un firewall (ping 10.10.10.10 desde R1).
+                2) routeros_radius_bad_replies sube -> el servidor responde pero R1 descarta: shared secret distinto
+                   (/radius en R1 vs RADIUS_SECRET_R1 en freeradius/.env).
+                3) FreeRADIUS recibe y descarta (freeradius_total_auth_dropped_requests) o no responde -> el servidor
+                   o la base: docker logs freeradius; ¿PostgreSQL arriba? (pg_up).
+                Los abonados ya conectados siguen funcionando; los nuevos no entran (bitácora 19/11).
+
+  # 2. Servicio sano: todo pedido tiene respuesta (accepts + rejects = requests).
+  - name: servicio sano -> sin alertas
+    interval: 1m
+    input_series:
+      - series: 'routeros_radius_requests_total{radius="10.10.10.10"}'
+        values: '0+3x60'
+      - series: 'routeros_radius_accepts_total{radius="10.10.10.10"}'
+        values: '0+2x60'
+      - series: 'routeros_radius_rejects_total{radius="10.10.10.10"}'
+        values: '0+1x60'
+      - series: 'routeros_radius_resends_total{radius="10.10.10.10"}'
+        values: '0x60'
+    alert_rule_test:
+      - { eval_time: 45m, alertname: AutenticacionQuemaRapida, exp_alerts: [] }
+      - { eval_time: 45m, alertname: AutenticacionLentaQuemaRapida, exp_alerts: [] }
+
+  # 3. Sin tráfico (madrugada del laboratorio): NaN, no hay síntoma, no dispara.
+  - name: sin pedidos -> sin alertas
+    interval: 1m
+    input_series:
+      - series: 'routeros_radius_requests_total{radius="10.10.10.10"}'
+        values: '10x60'
+      - series: 'routeros_radius_accepts_total{radius="10.10.10.10"}'
+        values: '7x60'
+      - series: 'routeros_radius_rejects_total{radius="10.10.10.10"}'
+        values: '0x60'
+      - series: 'routeros_radius_resends_total{radius="10.10.10.10"}'
+        values: '0x60'
+    alert_rule_test:
+      - { eval_time: 45m, alertname: AutenticacionQuemaRapida, exp_alerts: [] }
+
+  # 4. Sesión abierta sin Interim: SLI 4 en 0 durante más de 15 min.
+  - name: accounting desactualizado
+    interval: 1m
+    input_series:
+      - series: 'radius_sesiones_activas_total'
+        values: '1x30'
+      - series: 'radius_sesiones_activas_frescas'
+        values: '1x5 0x25'
+    alert_rule_test:
+      - { eval_time: 15m, alertname: AccountingDesactualizado, exp_alerts: [] }
+      - eval_time: 25m
+        alertname: AccountingDesactualizado
+        exp_alerts:
+          - exp_labels: { severity: page, service: radius, slo: frescura }
+            exp_annotations:
+              summary: "0% de las sesiones abiertas tiene accounting reciente"
+              description: "Hay sesiones abiertas en radacct sin Start/Interim en los últimos 11 min (Interim cada 5 min). El consumo que muestra Grafana está atrasado."
+              runbook: >-
+                1) ¿Llegan Accounting-Request al servidor? freeradius_total_acct_requests.
+                2) Si llegan, ¿la base acepta escrituras? Dashboard PostgreSQL (escrituras en radacct, rollbacks).
+                3) Si no llegan: ¿/ppp aaa de R1 tiene interim-update=5m y accounting=yes?
+                4) Sesiones fantasma: un NAS reiniciado sin Stop deja filas abiertas para siempre;
+                   R1 manda Accounting-On al arrancar para cerrarlas.
+
+  # 5. Sin sesiones abiertas: no hay dato de frescura, no dispara.
+  - name: sin sesiones -> sin alerta de frescura
+    interval: 1m
+    input_series:
+      - series: 'radius_sesiones_activas_total'
+        values: '0x30'
+      - series: 'radius_sesiones_activas_frescas'
+        values: '0x30'
+    alert_rule_test:
+      - { eval_time: 25m, alertname: AccountingDesactualizado, exp_alerts: [] }
+
+  # 6. Pool de PPPoE al 82 %.
+  - name: pool casi agotado
+    interval: 1m
+    input_series:
+      - series: 'mktxp_ip_pool_used{pool="pool-pppoe",instance="r1",job="r1-mktxp",service="pppoe"}'
+        values: '75x10'
+      - series: 'mktxp_ip_pool_total{pool="pool-pppoe",instance="r1",job="r1-mktxp",service="pppoe"}'
+        values: '91x10'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: PoolPppoeCasiAgotado
+        exp_alerts:
+          - exp_labels: { severity: ticket, service: pppoe, pool: pool-pppoe, instance: r1, job: r1-mktxp }
+            exp_annotations:
+              summary: "pool-pppoe de R1 al 82.42%"
+              description: "Sin IPs libres, el abonado se autentica (Access-Accept) pero falla en IPCP y no navega."
+              runbook: "Ampliar pool-pppoe en R1 (/ip pool) o agregar un rango. Revisar sesiones colgadas (/ppp active)."

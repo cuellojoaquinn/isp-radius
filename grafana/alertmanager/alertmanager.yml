@@ -1,13 +1,41 @@
 # Alertmanager — qué hacer con las alertas que dispara Prometheus.
-# Paso 1: sin canal de aviso todavía; las alertas se ven en http://localhost:9093
-# y en Grafana. El canal (Telegram / mail) y las inhibiciones se definen en el paso 5.
+#
+# Por ahora sin canal de aviso: las alertas se ven en http://localhost:9093 y en
+# Grafana. Para sumar un canal (Telegram) o el agente de diagnóstico (webhook) se
+# agrega un receiver y se lo asigna en las rutas de abajo; las reglas no cambian.
 
 route:
   receiver: ninguno
-  group_by: [service, alertname]   # una caída de db = un solo aviso, no uno por alerta
+  group_by: [service, alertname]   # una caída = un aviso por servicio, no uno por serie
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
+  routes:
+    # page: alguien tiene que actuar ya (síntoma de usuario o monitoreo ciego)
+    - matchers: [severity="page"]
+      receiver: ninguno            # a futuro: telegram + agente-diagnostico (webhook)
+      repeat_interval: 1h
+    # ticket: hay que mirarlo en horario laboral (presupuesto quemándose lento, saturación)
+    - matchers: [severity="ticket"]
+      receiver: ninguno            # a futuro: telegram (sin agente)
+      repeat_interval: 12h
+
+inhibit_rules:
+  # Si ya hay un page por un SLO, callar el ticket del mismo SLO (es el mismo problema).
+  - source_matchers: [severity="page"]
+    target_matchers: [severity="ticket"]
+    equal: [slo]
+
+  # Si se cayó una VM entera (su node-exporter), callar las demás caídas de esa VM:
+  # llega un solo aviso con la causa probable, no uno por exporter.
+  - source_matchers: [alertname="TargetCaido", job="node"]
+    target_matchers: [alertname="TargetCaido"]
+    equal: [instance]
+
+  # Si r1-exporter no puede leer R1, los SLI 1 y 2 no tienen datos nuevos:
+  # no avisar además por el target de mktxp (mismo origen: R1).
+  - source_matchers: [alertname="R1SinAcceso"]
+    target_matchers: [alertname="TargetCaido", instance="r1"]
 
 receivers:
   - name: ninguno
