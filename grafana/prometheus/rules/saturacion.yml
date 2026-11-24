@@ -15,7 +15,7 @@ groups:
           runbook: >-
             1) vagrant ssh {{ $labels.instance }} -c 'df -h /; docker system df'.
             2) En db: tamaño de radacct (dashboard PostgreSQL). Definir retención del accounting.
-            3) Logs de contenedores: FreeRADIUS en -X genera mucho log.
+            3) Logs: journalctl --disk-usage (tope 500 MB, scripts/base.sh). Si FreeRADIUS quedó en -X, genera mucho log.
 
       - alert: PostgresConexionesAltas
         expr: sum(pg_stat_activity_count) / max(pg_settings_max_connections) > 0.8

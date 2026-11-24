@@ -3,13 +3,17 @@ services:
     image: freeradius/freeradius-server:latest-3.2
     container_name: freeradius
     restart: unless-stopped
-    command: -X                # modo debug: muestra cada paquete (solo laboratorio)
+    # Sin -X (debug): -X imprime la contraseña de la base y ~3700 líneas por login.
+    # -f primer plano, -l stdout log a la salida -> journal -> Loki.
+    # Para depurar: ver la cabecera de radiusd.conf.
+    command: -f -l stdout
     env_file: .env             # secretos: ver .env.example
     ports:
       - "1812:1812/udp"        # autenticación
       - "1813:1813/udp"        # accounting
       - "3799:3799/udp"        # órdenes CoA / Disconnect (de facturación)
     volumes:
+      - ./radiusd.conf:/etc/raddb/radiusd.conf:ro      # log: auth = yes, sin contraseñas
       - ./clients.conf:/etc/raddb/clients.conf:ro
       - ./authorize:/etc/raddb/mods-config/files/authorize:ro
       - ./sql:/etc/raddb/mods-enabled/sql:ro

@@ -143,7 +143,7 @@ Prometheus relee su configuración y reglas sin reiniciar: `curl -X POST localho
 ## Notas
 
 - Los scripts de `db/init/` corren **solo con el volumen vacío**. Para reinicializar: `docker-compose down -v` (borra los datos).
-- FreeRADIUS corre en modo `-X` (debug) para el laboratorio: el log muestra paquetes y la contraseña de la base. También muestra un Status-Server cada 15 s (lo consulta el exporter).
+- FreeRADIUS corre **sin `-X`**: el log tiene una línea por login (`Login OK` / `Login incorrect` con el motivo) y los errores, sin contraseñas (`freeradius/radiusd.conf`, sección `log`). Se ve con `docker logs freeradius` o en Grafana (Loki). Para depurar un problema puntual con el detalle de cada paquete, en la VM freeradius: `docker-compose stop freeradius && docker-compose run --rm --service-ports freeradius -X` (Ctrl+C y `docker-compose up -d freeradius` para volver). Ojo: `-X` imprime la contraseña de la base y los secrets.
 - `db/init/04-exporter.sh` crea el usuario `exporter`. En una base que ya existía, aplicarlo a mano: `vagrant ssh db -c "docker exec -i postgres bash < /vagrant/db/init/04-exporter.sh"`.
 - En `radacct` hay sesiones de prueba (`Acct-Session-Id` `prueba-N`) generadas con `radclient` el 20/11. Borrarlas hace bajar contadores del SLI 3 y Prometheus lo toma como reinicio (salto falso de 24 h).
 
