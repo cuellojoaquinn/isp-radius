@@ -57,3 +57,12 @@ El ABM de **cliente** (la persona) es SQL común sobre `facturacion.cliente`. El
 | `baja.sh <usuario>` | `baja_servicio` | grupo `baja` (rechaza) | **Disconnect** si está conectado |
 
 Validaciones en las funciones: el plan existe, el usuario no está repetido en RADIUS y la contraseña tiene al menos 8 caracteres. La base no habla RADIUS: las funciones devuelven el NAS (y la velocidad) y el **script** manda el CoA/Disconnect. Los parámetros se pasan como variables de `psql` (`-v` / `:'var'`), no pegados en el SQL, para evitar inyección.
+
+## Menú interactivo
+
+`facturacion/menu.sh` agrupa todas las operaciones (consultas, ABM y cobranza) y, antes de cada una, muestra en qué **nivel** actúa: `[FACTURACIÓN]` (esquema del negocio), `[RADIUS]` (quién entra y con qué plan) o `[R1]` (orden al router vía FreeRADIUS: CoA o Disconnect). Incluye **emitir factura** (con el precio vigente del plan). Va en la misma carpeta que los otros scripts, porque los llama.
+
+```bash
+facturacion/menu.sh
+```
+
