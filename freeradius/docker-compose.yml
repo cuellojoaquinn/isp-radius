@@ -46,6 +46,30 @@ services:
     volumes:
       - /:/host:ro,rslave
 
+  # Logs de esta VM (contenedores y sistema) hacia Loki. Lee el journal en solo
+  # lectura, sin socket de Docker. Config compartida: alloy/journal.alloy.
+  alloy:
+    image: grafana/alloy:v1.21.3
+    container_name: alloy
+    restart: unless-stopped
+    user: "473:473"            # usuario alloy de la imagen, no root
+    group_add: ["999"]         # systemd-journal en Debian: permiso para leer el journal
+    environment:
+      INSTANCE: freeradius           # mismas etiquetas que en Prometheus
+      SERVICE: radius
+    command:
+      - run
+      - /etc/alloy/isp-radius   # solo nuestra config (no la de ejemplo de la imagen)
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    ports:
+      - "10.10.10.10:12345:12345"   # métricas de Alloy para Prometheus, solo en gestion
+    volumes:
+      - ../alloy/journal.alloy:/etc/alloy/isp-radius/journal.alloy:ro
+      - /var/log/journal:/var/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      - alloy-data:/var/lib/alloy/data
+
 # Red interna con rango fijo: el client "exporter" del virtual server status
 # (freeradius/status) solo acepta este rango.
 networks:
@@ -53,3 +77,6 @@ networks:
     ipam:
       config:
         - subnet: 172.30.10.0/24
+
+volumes:
+  alloy-data:

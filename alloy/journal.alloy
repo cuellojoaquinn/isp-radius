@@ -1,0 +1,63 @@
+// Grafana Alloy — recolector de logs. Corre uno en cada VM (mismo archivo para las tres).
+//
+// Docker manda los logs de los contenedores al journal del sistema (log-driver
+// journald, ver scripts/base.sh). Alloy lee el journal en solo lectura, sin socket
+// de Docker, y manda todo a Loki (VM grafana). Así también llegan los logs del
+// sistema: kernel (OOM killer), dockerd, ssh.
+//
+// Si Loki no responde, Alloy recuerda hasta dónde leyó (--storage.path) y sigue
+// desde ahí: mientras tanto los logs esperan en el journal de la VM (14 días, 500 MB).
+//
+// Etiquetas: las mismas instance/service que en Prometheus (vienen del compose de
+// cada VM), más container (contenedor) o unit (servicio del sistema).
+
+discovery.relabel "journal" {
+  targets = []
+
+  rule {
+    source_labels = ["__journal_container_name"]
+    target_label  = "container"
+  }
+
+  // Solo para lo que no es un contenedor (en ellos sería siempre docker.service)
+  rule {
+    source_labels = ["__journal_container_name", "__journal__systemd_unit"]
+    regex         = ";(.+)"
+    target_label  = "unit"
+  }
+
+  // Una sesión SSH = una unidad nueva (session-12.scope): unificar para que la
+  // etiqueta no crezca sin límite
+  rule {
+    source_labels = ["unit"]
+    regex         = "session-[0-9]+\\.scope"
+    target_label  = "unit"
+    replacement   = "session.scope"
+  }
+
+  // Mensajes del kernel (OOM killer, disco, red): no tienen unidad
+  rule {
+    source_labels = ["__journal__transport"]
+    regex         = "kernel"
+    target_label  = "unit"
+    replacement   = "kernel"
+  }
+}
+
+loki.source.journal "journal" {
+  path          = "/var/log/journal"
+  max_age       = "12h"      // al arrancar por primera vez, no reenviar más que esto
+  relabel_rules = discovery.relabel.journal.rules
+  labels        = {
+    job      = "journal",
+    instance = sys.env("INSTANCE"),
+    service  = sys.env("SERVICE"),
+  }
+  forward_to = [loki.write.loki.receiver]
+}
+
+loki.write "loki" {
+  endpoint {
+    url = "http://10.10.10.30:3100/loki/api/v1/push"
+  }
+}

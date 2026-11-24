@@ -4,6 +4,7 @@
 #   grafana       solo visualización (datasources y dashboards en provisioning/)
 #   loki          almacén de logs: los reciben los Alloy de cada VM (10.10.10.30:3100)
 #   node-exporter recursos de esta VM
+#   alloy         logs de esta VM hacia Loki
 #
 # Las interfaces web se publican en todas las interfaces de la VM: el Vagrantfile
 # las redirige a 127.0.0.1 del host (la red gestion no es accesible desde el host).
@@ -107,7 +108,32 @@ services:
     volumes:
       - /:/host:ro,rslave
 
+  # Logs de esta VM (contenedores y sistema) hacia Loki. Lee el journal en solo
+  # lectura, sin socket de Docker. Config compartida: alloy/journal.alloy.
+  alloy:
+    image: grafana/alloy:v1.21.3
+    container_name: alloy
+    restart: unless-stopped
+    user: "473:473"            # usuario alloy de la imagen, no root
+    group_add: ["999"]         # systemd-journal en Debian: permiso para leer el journal
+    environment:
+      INSTANCE: grafana           # mismas etiquetas que en Prometheus
+      SERVICE: monitoreo
+    command:
+      - run
+      - /etc/alloy/isp-radius   # solo nuestra config (no la de ejemplo de la imagen)
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    ports:
+      - "10.10.10.30:12345:12345"   # métricas de Alloy para Prometheus, solo en gestion
+    volumes:
+      - ../alloy/journal.alloy:/etc/alloy/isp-radius/journal.alloy:ro
+      - /var/log/journal:/var/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      - alloy-data:/var/lib/alloy/data
+
 volumes:
+  alloy-data:
   prometheus-data:
   alertmanager-data:
   grafana-data:

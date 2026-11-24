@@ -67,3 +67,13 @@ scrape_configs:
     static_configs:
       - targets: ["loki:3100"]
         labels: { instance: grafana, service: monitoreo }
+
+  # Alloy de cada VM: si se cae, los logs de esa VM dejan de llegar sin ruido
+  - job_name: alloy
+    static_configs:
+      - targets: ["10.10.10.10:12345"]
+        labels: { instance: freeradius, service: radius }
+      - targets: ["10.10.10.20:12345"]
+        labels: { instance: db, service: db }
+      - targets: ["10.10.10.30:12345"]
+        labels: { instance: grafana, service: monitoreo }
