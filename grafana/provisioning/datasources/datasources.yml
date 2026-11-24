@@ -35,3 +35,12 @@ datasources:
     jsonData:
       implementation: prometheus
       handleGrafanaManagedAlerts: false   # las alertas las evalúa Prometheus, no Grafana
+
+  # Logs de todas las VMs y de R1 (Loki en esta misma VM)
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      maxLines: 1000

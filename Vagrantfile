@@ -3,7 +3,7 @@
 # Crea tres VMs Debian 12 en la red interna de VirtualBox "gestion" (10.10.10.0/24):
 #   db          10.10.10.20   PostgreSQL en Docker
 #   freeradius  10.10.10.10   FreeRADIUS en Docker
-#   grafana     10.10.10.30   monitoreo: Prometheus, Alertmanager, Grafana
+#   grafana     10.10.10.30   monitoreo: Prometheus, Alertmanager, Grafana, Loki
 #
 # R1 (MikroTik CHR) y los abonados NO se crean acá: se importan a mano en
 # VirtualBox. El adaptador de R1 que hace de ether1 va en "Red interna" con
@@ -19,7 +19,7 @@
 VMS = [
   { name: "db",         ip: "10.10.10.20", compose: "db" },
   { name: "freeradius", ip: "10.10.10.10", compose: "freeradius" },
-  { name: "grafana",    ip: "10.10.10.30", compose: "grafana", memory: 1536,
+  { name: "grafana",    ip: "10.10.10.30", compose: "grafana", memory: 2048,
     ports: [3000, 9090, 9093] },
 ]
 
@@ -41,7 +41,7 @@ Vagrant.configure("2") do |config|
       # (la salida a internet es la NAT de Vagrant)
       m.vm.network "private_network", ip: vm[:ip], virtualbox__intnet: "gestion"
 
-      # Prometheus guarda 35 días de métricas: necesita más memoria
+      # Prometheus (35 días de métricas) y Loki (14 días de logs): necesita más memoria
       if vm[:memory]
         m.vm.provider("virtualbox") { |vb| vb.memory = vm[:memory] }
       end

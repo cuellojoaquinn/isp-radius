@@ -2,6 +2,7 @@
 #   prometheus    recolecta métricas de los exporters y evalúa las reglas de alerta
 #   alertmanager  agrupa, inhibe y envía las alertas que dispara Prometheus
 #   grafana       solo visualización (datasources y dashboards en provisioning/)
+#   loki          almacén de logs: los reciben los Alloy de cada VM (10.10.10.30:3100)
 #   node-exporter recursos de esta VM
 #
 # Las interfaces web se publican en todas las interfaces de la VM: el Vagrantfile
@@ -52,6 +53,19 @@ services:
       - ./dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
 
+  # Logs de todas las VMs (y de R1 por syslog). Lo consulta Grafana.
+  # Se publica solo en gestion: ahí le escriben los Alloy de db y freeradius.
+  loki:
+    image: grafana/loki:3.7.9
+    container_name: loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki.yml
+    ports:
+      - "10.10.10.30:3100:3100"
+    volumes:
+      - ./loki:/etc/loki:ro
+      - loki-data:/loki
+
   # R1 en general (CPU, memoria, interfaces, pool, colas) por la API de RouterOS.
   # La config se arma al arrancar desde la plantilla del repo + la contraseña de .env
   # (_mktxp.conf, la config del propio exporter, la crea mktxp con sus valores por defecto).
@@ -97,3 +111,4 @@ volumes:
   prometheus-data:
   alertmanager-data:
   grafana-data:
+  loki-data:

@@ -1,0 +1,55 @@
+# Loki — almacén de logs del laboratorio (un solo binario, todo en el disco de la VM).
+#
+# Recibe los logs de Alloy (uno por VM) en :3100 y los consulta Grafana.
+# Retención 14 días: los logs tienen usuarios, MACs e IPs de abonados (datos personales).
+#
+# Etiquetas (índice): pocas y con pocos valores, las mismas que en Prometheus
+# (instance, service) más container y level. Usuario, MAC o IP NUNCA como etiqueta:
+# van en el texto y se filtran al consultar ({service="radius"} |= "abonado1").
+
+auth_enabled: false            # un solo inquilino; escucha solo en la red de gestión
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9095
+  log_level: warn
+
+common:
+  path_prefix: /loki
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+  instance_addr: 127.0.0.1
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+
+schema_config:
+  configs:
+    - from: 2026-11-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  retention_period: 336h       # 14 días
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  allow_structured_metadata: true
+  volume_enabled: true         # gráfico de volumen de logs en Grafana
+
+# El compactor es el que borra lo que pasa la retención
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  delete_request_store: filesystem
+
+analytics:
+  reporting_enabled: false

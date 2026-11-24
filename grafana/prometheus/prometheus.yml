@@ -61,3 +61,9 @@ scrape_configs:
     static_configs:
       - targets: ["alertmanager:9093"]
         labels: { instance: grafana, service: monitoreo }
+
+  # Loki también expone métricas (ingesta, errores): si se cae, TargetCaido avisa
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+        labels: { instance: grafana, service: monitoreo }
