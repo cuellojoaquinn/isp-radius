@@ -7,8 +7,9 @@ INSERT INTO facturacion.estadoservicio (nombre, radius_groupname) VALUES
   ('moroso',   'moroso'),   -- rechaza
   ('inactivo', 'baja');     -- rechaza
 
-INSERT INTO facturacion.tiposervicio (nombre, precio, radius_groupname)
-VALUES ('Plan 50 megas', 10000, 'plan-50m');
+INSERT INTO facturacion.tiposervicio (nombre, precio, radius_groupname) VALUES
+  ('Plan 50 megas', 10000, 'plan-50m'),
+  ('Plan 10 megas',  6000, 'plan-10m');
 
 INSERT INTO facturacion.cliente (nombre) VALUES ('Juan Pérez'), ('María Gómez');
 

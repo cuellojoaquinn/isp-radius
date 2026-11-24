@@ -44,3 +44,16 @@ facturacion/rehabilitar.sh
 Programados con `cron`: ver `crontab.txt`. La salida queda en `facturacion/jobs.log`.
 
 Requisitos: `radclient` (paquete `freeradius-utils`), el sitio `coa` en FreeRADIUS y `/radius incoming` habilitado en R1.
+
+## ABM de servicios
+
+El ABM de **cliente** (la persona) es SQL común sobre `facturacion.cliente`. El de **servicio** (cada conexión) toca RADIUS, así que se hace con **funciones de base** (`db/init/07-facturacion-funciones.sql`) que `facturacion` puede ejecutar sin tener permisos directos sobre las tablas de RADIUS (`SECURITY DEFINER`). Cada función es una sola transacción: o queda todo hecho o nada.
+
+| Script | Función | Efecto en RADIUS | Orden a R1 |
+|---|---|---|---|
+| `alta.sh "<cliente>" <plan> <usuario> <contraseña>` | `alta_servicio` | crea `radcheck` + `radusergroup` | — |
+| `cambiar_plan.sh <usuario> <plan>` | `cambiar_plan` | cambia el grupo (si está activo) | **CoA** con la velocidad nueva, en caliente |
+| `cambiar_password.sh <usuario> <contraseña>` | `cambiar_password` | actualiza `radcheck` | — (vale en la próxima autenticación) |
+| `baja.sh <usuario>` | `baja_servicio` | grupo `baja` (rechaza) | **Disconnect** si está conectado |
+
+Validaciones en las funciones: el plan existe, el usuario no está repetido en RADIUS y la contraseña tiene al menos 8 caracteres. La base no habla RADIUS: las funciones devuelven el NAS (y la velocidad) y el **script** manda el CoA/Disconnect. Los parámetros se pasan como variables de `psql` (`-v` / `:'var'`), no pegados en el SQL, para evitar inyección.

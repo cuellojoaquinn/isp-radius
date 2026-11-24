@@ -20,3 +20,7 @@ VALUES ('abonado2', 'plan-50m', 1);
 INSERT INTO radgroupcheck (groupname, attribute, op, value) VALUES
   ('moroso', 'Auth-Type', ':=', 'Reject'),
   ('baja',   'Auth-Type', ':=', 'Reject');
+
+-- Plan 10 megas
+INSERT INTO radgroupreply (groupname, attribute, op, value)
+VALUES ('plan-10m', 'Mikrotik-Rate-Limit', ':=', '10M/10M');
