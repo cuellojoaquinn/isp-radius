@@ -1,0 +1,151 @@
+# Tests del modelo de topología (rules/topologia.yml): qué estado toma cada nodo y
+# conexión según las métricas. Se cuenta por estado para no comparar valores NaN.
+# Correr:  docker run --rm --entrypoint promtool -v "$PWD/grafana/prometheus:/etc/prometheus:ro" \
+#            prom/prometheus:v3.5.0 test rules /etc/prometheus/tests/topologia_test.yml
+rule_files:
+  - ../rules/slo.yml
+  - ../rules/topologia.yml
+
+evaluation_interval: 30s
+
+tests:
+  # 1. Todo sano: R1 manda 3 pedidos/min y recibe respuesta a todos, la base contesta.
+  - name: todo sano -> verde
+    interval: 30s
+    input_series:
+      - { series: 'routeros_exporter_up{instance="r1"}', values: '1x40' }
+      - { series: 'mktxp_system_cpu_load{instance="r1"}', values: '5x40' }
+      - { series: 'routeros_ppp_active_sessions{ppp_service="pppoe",radius="yes"}', values: '1x40' }
+      - { series: 'mktxp_ip_pool_used{pool="pool-pppoe"}', values: '1x40' }
+      - { series: 'mktxp_ip_pool_total{pool="pool-pppoe"}', values: '91x40' }
+      - { series: 'routeros_radius_requests_total{radius="10.10.10.10"}', values: '0+1.5x40' }
+      - { series: 'routeros_radius_accepts_total{radius="10.10.10.10"}', values: '0+1.5x40' }
+      - { series: 'routeros_radius_rejects_total{radius="10.10.10.10"}', values: '0x40' }
+      - { series: 'freeradius_up{instance="freeradius"}', values: '1x40' }
+      - { series: 'freeradius_total_access_requests{instance="freeradius"}', values: '0+1x40' }
+      - { series: 'pg_up{instance="db"}', values: '1x40' }
+      - { series: 'pg_stat_activity_count{instance="db",state="idle"}', values: '4x40' }
+      - { series: 'radius:sql_errores:rate5m{instance="freeradius",service="radius"}', values: '0x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_nodo)
+        eval_time: 15m
+        exp_samples:
+          - { labels: '{id="abonados", detail__estado="info"}', value: 1 }
+          - { labels: '{id="r1", detail__estado="sano"}', value: 1 }
+          - { labels: '{id="freeradius", detail__estado="sano"}', value: 1 }
+          - { labels: '{id="postgres", detail__estado="sano"}', value: 1 }
+          - { labels: '{id="facturacion", detail__estado="sin_metrica"}', value: 1 }
+      - expr: count by (id, detail__estado, color) (topologia_conexion)
+        eval_time: 15m
+        exp_samples:
+          - { labels: '{id="abonados-r1", detail__estado="sano", color="#73BF69"}', value: 1 }
+          - { labels: '{id="r1-freeradius", detail__estado="sano", color="#73BF69"}', value: 1 }
+          - { labels: '{id="freeradius-postgres", detail__estado="sano", color="#73BF69"}', value: 1 }
+          - { labels: '{id="freeradius-r1-coa", detail__estado="sin_metrica", color="#8E8E8E"}', value: 1 }
+          - { labels: '{id="facturacion-postgres", detail__estado="sin_metrica", color="#8E8E8E"}', value: 1 }
+          - { labels: '{id="facturacion-freeradius", detail__estado="sin_metrica", color="#8E8E8E"}', value: 1 }
+      # El número de la conexión RADIUS: pedidos por minuto que manda R1
+      - expr: topologia_conexion{id="r1-freeradius"}
+        eval_time: 15m
+        exp_samples:
+          - labels: 'topologia_conexion{id="r1-freeradius", source="r1", target="freeradius", secondarystat="pedidos/min", detail__por="RADIUS UDP 1812/1813", detail__estado="sano", color="#73BF69"}'
+            value: 3
+
+  # 2. Base caída: el exporter ve pg_up = 0 y FreeRADIUS loguea errores de rlm_sql
+  #    (y sigue respondiendo: rechaza a todos, el SLI 1 no lo ve).
+  - name: base caida -> postgres y conexion sql en rojo
+    interval: 30s
+    input_series:
+      - { series: 'freeradius_up{instance="freeradius"}', values: '1x40' }
+      - { series: 'pg_up{instance="db"}', values: '0x40' }
+      - { series: 'radius:sql_errores:rate5m{instance="freeradius",service="radius"}', values: '0.08x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_nodo{id=~"postgres|freeradius"})
+        eval_time: 10m
+        exp_samples:
+          - { labels: '{id="postgres", detail__estado="falla"}', value: 1 }
+          - { labels: '{id="freeradius", detail__estado="sano"}', value: 1 }
+      - expr: count by (id, detail__estado) (topologia_conexion{id="freeradius-postgres"})
+        eval_time: 10m
+        exp_samples:
+          - { labels: '{id="freeradius-postgres", detail__estado="falla"}', value: 1 }
+
+  # 3. FreeRADIUS caído: R1 manda pedidos y no vuelve nada; nadie loguea errores sql.
+  - name: freeradius caido -> nodo y radius en rojo, sql gris
+    interval: 30s
+    input_series:
+      - { series: 'routeros_radius_requests_total{radius="10.10.10.10"}', values: '0+1.5x40' }
+      - { series: 'routeros_radius_accepts_total{radius="10.10.10.10"}', values: '0x40' }
+      - { series: 'routeros_radius_rejects_total{radius="10.10.10.10"}', values: '0x40' }
+      - { series: 'freeradius_up{instance="freeradius"}', values: '0x40' }
+      - { series: 'radius:sql_errores:rate5m{instance="freeradius",service="radius"}', values: '0x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_nodo{id="freeradius"})
+        eval_time: 10m
+        exp_samples:
+          - { labels: '{id="freeradius", detail__estado="falla"}', value: 1 }
+      - expr: count by (id, detail__estado) (topologia_conexion{id=~"r1-freeradius|freeradius-postgres"})
+        eval_time: 10m
+        exp_samples:
+          - { labels: '{id="r1-freeradius", detail__estado="falla"}', value: 1 }
+          - { labels: '{id="freeradius-postgres", detail__estado="sin_dato"}', value: 1 }
+
+  # 4. Sin tráfico (madrugada): la proporción es NaN -> gris, no verde.
+  - name: sin trafico -> radius gris
+    interval: 30s
+    input_series:
+      - { series: 'routeros_radius_requests_total{radius="10.10.10.10"}', values: '10x40' }
+      - { series: 'routeros_radius_accepts_total{radius="10.10.10.10"}', values: '10x40' }
+      - { series: 'routeros_radius_rejects_total{radius="10.10.10.10"}', values: '0x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_conexion{id="r1-freeradius"})
+        eval_time: 10m
+        exp_samples:
+          - { labels: '{id="r1-freeradius", detail__estado="sin_dato"}', value: 1 }
+
+  # 5. Pocos errores (degradado) y muchos (falla) en la conexión RADIUS.
+  - name: radius con 1 % sin respuesta -> amarillo
+    interval: 30s
+    input_series:
+      - { series: 'routeros_radius_requests_total{radius="10.10.10.10"}', values: '0+50x40' }
+      - { series: 'routeros_radius_accepts_total{radius="10.10.10.10"}', values: '0+49.5x40' }
+      - { series: 'routeros_radius_rejects_total{radius="10.10.10.10"}', values: '0x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_conexion{id="r1-freeradius"})
+        eval_time: 10m
+        exp_samples:
+          - { labels: '{id="r1-freeradius", detail__estado="degradado"}', value: 1 }
+
+  # 6. Exporters caídos: sin métricas -> gris en todo, nunca verde.
+  - name: sin exporters -> todo gris
+    interval: 30s
+    input_series:
+      - { series: 'up{job="otra-cosa"}', values: '1x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_nodo)
+        eval_time: 5m
+        exp_samples:
+          - { labels: '{id="abonados", detail__estado="sin_dato"}', value: 1 }
+          - { labels: '{id="r1", detail__estado="sin_dato"}', value: 1 }
+          - { labels: '{id="freeradius", detail__estado="sin_dato"}', value: 1 }
+          - { labels: '{id="postgres", detail__estado="sin_dato"}', value: 1 }
+          - { labels: '{id="facturacion", detail__estado="sin_metrica"}', value: 1 }
+      - expr: count by (id, detail__estado) (topologia_conexion{id=~"abonados-r1|r1-freeradius|freeradius-postgres"})
+        eval_time: 5m
+        exp_samples:
+          - { labels: '{id="abonados-r1", detail__estado="sin_dato"}', value: 1 }
+          - { labels: '{id="r1-freeradius", detail__estado="sin_dato"}', value: 1 }
+          - { labels: '{id="freeradius-postgres", detail__estado="sin_dato"}', value: 1 }
+
+  # 7. Pool al 85 %: la conexión PPPoE en amarillo.
+  - name: pool casi lleno -> pppoe amarillo
+    interval: 30s
+    input_series:
+      - { series: 'routeros_ppp_active_sessions{ppp_service="pppoe",radius="yes"}', values: '77x40' }
+      - { series: 'mktxp_ip_pool_used{pool="pool-pppoe"}', values: '77x40' }
+      - { series: 'mktxp_ip_pool_total{pool="pool-pppoe"}', values: '91x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_conexion{id="abonados-r1"})
+        eval_time: 5m
+        exp_samples:
+          - { labels: '{id="abonados-r1", detail__estado="degradado"}', value: 1 }

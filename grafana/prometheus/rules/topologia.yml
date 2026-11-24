@@ -1,0 +1,169 @@
+# Topología del servicio: qué componente depende de cuál y si esa conexión está sana.
+# Es el modelo de dependencias: lo dibuja el dashboard "Mapa" (Node Graph) y se puede
+# consultar en Prometheus ({__name__=~"topologia_.*"}), por ejemplo desde el futuro
+# agente de diagnóstico.
+#
+# SOLO VISTA: no genera alertas ni inhibiciones. Las alertas siguen por síntoma
+# (slo.yml): el libro de SRE desaconseja derivar alertas de jerarquías de dependencias.
+#
+#   [Abonados] --PPPoE--> [R1] --RADIUS--> [FreeRADIUS] --SQL--> [PostgreSQL]
+#                          ^-------CoA------'     ^                  ^
+#                                     [Facturación] --CoA--'   --SQL--'
+#
+# Cada elemento es una serie cuyo valor es el número que se muestra, con etiquetas que
+# Node Graph usa directamente como campos:
+#   topologia_nodo{id, title, subtitle, secondarystat, color, detail__estado, instancia}
+#     (instancia = etiqueta instance de sus métricas y logs, para los links del mapa)
+#   topologia_conexion{id, source, target, secondarystat, color, detail__estado, detail__por}
+# Cada estado es una regla que solo produce serie cuando su condición se cumple: en cada
+# momento hay una sola serie por elemento. El color va como etiqueta (texto CSS) porque
+# Node Graph usa así el color de las conexiones.
+#
+# Estados y colores:
+#   sano #73BF69 · degradado #FADE2A · falla #F2495C · info #5794F2 (sin salud propia)
+#   sin_dato #8E8E8E (no sé: exporter caído, sin tráfico) · sin_metrica #8E8E8E (no lo medimos)
+# Gris NO es verde: un exporter caído o una ventana sin tráfico no prueban que esté bien.
+# Valor NaN = no hay número que mostrar.
+
+groups:
+  - name: topologia
+    interval: 30s
+    rules:
+      # ============================================================ nodos
+      # --- Abonados: sin salud propia (0 sesiones de madrugada no es una falla)
+      - record: topologia_nodo
+        expr: sum(routeros_ppp_active_sessions{ppp_service="pppoe"})
+        labels:
+          <<: &n_abonados { id: abonados, instancia: r1, title: Abonados, subtitle: "PPPoE (R2 en el lab)", secondarystat: sesiones }
+          detail__estado: info
+          color: "#5794F2"
+      - record: topologia_nodo
+        expr: absent(routeros_ppp_active_sessions) * NaN
+        labels: { <<: *n_abonados, detail__estado: sin_dato, color: "#8E8E8E" }
+
+      # --- R1 (NAS): ¿lo podemos leer? Número: CPU
+      - record: topologia_nodo
+        expr: (max(mktxp_system_cpu_load) or on() vector(NaN)) and on() (max(routeros_exporter_up) == 1)
+        labels:
+          <<: &n_r1 { id: r1, instancia: r1, title: R1, subtitle: "NAS · 10.10.10.1", secondarystat: "% CPU" }
+          detail__estado: sano
+          color: "#73BF69"
+      - record: topologia_nodo
+        expr: (max(routeros_exporter_up) == 0) * NaN
+        labels: { <<: *n_r1, detail__estado: falla, color: "#F2495C" }
+      - record: topologia_nodo
+        expr: absent(routeros_exporter_up) * NaN
+        labels: { <<: *n_r1, detail__estado: sin_dato, color: "#8E8E8E" }
+
+      # --- FreeRADIUS: ¿responde al Status-Server? Número: pedidos de auth por minuto
+      - record: topologia_nodo
+        expr: (sum(rate(freeradius_total_access_requests[5m])) * 60 or on() vector(NaN)) and on() (max(freeradius_up) == 1)
+        labels:
+          <<: &n_freeradius { id: freeradius, instancia: freeradius, title: FreeRADIUS, subtitle: "10.10.10.10", secondarystat: "auth/min" }
+          detail__estado: sano
+          color: "#73BF69"
+      - record: topologia_nodo
+        expr: (max(freeradius_up) == 0) * NaN
+        labels: { <<: *n_freeradius, detail__estado: falla, color: "#F2495C" }
+      - record: topologia_nodo
+        expr: absent(freeradius_up) * NaN
+        labels: { <<: *n_freeradius, detail__estado: sin_dato, color: "#8E8E8E" }
+
+      # --- PostgreSQL: ¿el exporter llega a la base? Número: conexiones
+      - record: topologia_nodo
+        expr: (sum(pg_stat_activity_count) or on() vector(NaN)) and on() (max(pg_up) == 1)
+        labels:
+          <<: &n_postgres { id: postgres, instancia: db, title: PostgreSQL, subtitle: "10.10.10.20", secondarystat: conexiones }
+          detail__estado: sano
+          color: "#73BF69"
+      - record: topologia_nodo
+        expr: (max(pg_up) == 0) * NaN
+        labels: { <<: *n_postgres, detail__estado: falla, color: "#F2495C" }
+      - record: topologia_nodo
+        expr: absent(pg_up) * NaN
+        labels: { <<: *n_postgres, detail__estado: sin_dato, color: "#8E8E8E" }
+
+      # --- Facturación (jobs en cron de la VM db): todavía sin métrica
+      - record: topologia_nodo
+        expr: vector(NaN)
+        labels: { id: facturacion, instancia: db, title: Facturación, subtitle: "jobs en cron (VM db)", secondarystat: "",
+                  detail__estado: sin_metrica, color: "#8E8E8E" }
+
+      # ============================================================ conexiones
+      # --- Abonados -> R1 (PPPoE). Salud: lugar en el pool. Número: sesiones
+      - record: topologia_conexion
+        expr: |
+          sum(routeros_ppp_active_sessions{ppp_service="pppoe"})
+          and on() (max(mktxp_ip_pool_used{pool="pool-pppoe"} / mktxp_ip_pool_total{pool="pool-pppoe"}) < 0.8)
+        labels:
+          <<: &c_pppoe { id: abonados-r1, source: abonados, target: r1, secondarystat: sesiones, detail__por: "PPPoE (pool-pppoe)" }
+          detail__estado: sano
+          color: "#73BF69"
+      - record: topologia_conexion
+        expr: |
+          sum(routeros_ppp_active_sessions{ppp_service="pppoe"})
+          and on() (max(mktxp_ip_pool_used{pool="pool-pppoe"} / mktxp_ip_pool_total{pool="pool-pppoe"}) >= 0.8 < 1)
+        labels: { <<: *c_pppoe, detail__estado: degradado, color: "#FADE2A" }
+      - record: topologia_conexion
+        expr: |
+          sum(routeros_ppp_active_sessions{ppp_service="pppoe"})
+          and on() (max(mktxp_ip_pool_used{pool="pool-pppoe"} / mktxp_ip_pool_total{pool="pool-pppoe"}) >= 1)
+        labels: { <<: *c_pppoe, detail__estado: falla, color: "#F2495C" }
+      - record: topologia_conexion
+        expr: max(absent(routeros_ppp_active_sessions) or absent(mktxp_ip_pool_used{pool="pool-pppoe"})) * NaN
+        labels: { <<: *c_pppoe, detail__estado: sin_dato, color: "#8E8E8E" }
+
+      # --- R1 -> FreeRADIUS (RADIUS). Salud: pedidos sin respuesta en 5 min (SLI 1),
+      #     rojo desde el umbral de page de AutenticacionQuemaRapida (14,4 x 0,001).
+      #     Número: pedidos por minuto que manda R1.
+      - record: topologia_conexion
+        expr: (sum(rate(routeros_radius_requests_total[5m])) * 60) and on() (slo:radius_auth_errores:ratio_rate5m == 0)
+        labels:
+          <<: &c_radius { id: r1-freeradius, source: r1, target: freeradius, secondarystat: "pedidos/min", detail__por: "RADIUS UDP 1812/1813" }
+          detail__estado: sano
+          color: "#73BF69"
+      - record: topologia_conexion
+        expr: (sum(rate(routeros_radius_requests_total[5m])) * 60) and on() (slo:radius_auth_errores:ratio_rate5m > 0 <= 0.0144)
+        labels: { <<: *c_radius, detail__estado: degradado, color: "#FADE2A" }
+      - record: topologia_conexion
+        expr: (sum(rate(routeros_radius_requests_total[5m])) * 60) and on() (slo:radius_auth_errores:ratio_rate5m > 0.0144)
+        labels: { <<: *c_radius, detail__estado: falla, color: "#F2495C" }
+      # Sin pedidos en la ventana (proporción NaN) o sin la métrica: no sé
+      - record: topologia_conexion
+        expr: |
+          ((sum(rate(routeros_radius_requests_total[5m])) * 60) and on() (slo:radius_auth_errores:ratio_rate5m != slo:radius_auth_errores:ratio_rate5m))
+          or on() (absent(slo:radius_auth_errores:ratio_rate5m) * NaN)
+        labels: { <<: *c_radius, detail__estado: sin_dato, color: "#8E8E8E" }
+
+      # --- FreeRADIUS -> PostgreSQL (SQL). Salud: errores rlm_sql en el log (ruler de
+      #     Loki). Con la base caída FreeRADIUS rechaza a todos: el SLI 1 no lo ve, esto sí.
+      #     Número: errores por minuto.
+      - record: topologia_conexion
+        expr: (max(radius:sql_errores:rate5m) * 60 == 0) and on() (max(freeradius_up) == 1)
+        labels:
+          <<: &c_sql { id: freeradius-postgres, source: freeradius, target: postgres, secondarystat: "errores sql/min", detail__por: "SQL TCP 5432" }
+          detail__estado: sano
+          color: "#73BF69"
+      - record: topologia_conexion
+        expr: max(radius:sql_errores:rate5m) * 60 > 0
+        labels: { <<: *c_sql, detail__estado: falla, color: "#F2495C" }
+      # FreeRADIUS caído (no hay quién loguee errores) o sin la métrica: no sé
+      - record: topologia_conexion
+        expr: |
+          ((max(radius:sql_errores:rate5m) * 60 == 0) unless on() (max(freeradius_up) == 1)) * NaN
+          or on() (absent(radius:sql_errores:rate5m) * NaN)
+        labels: { <<: *c_sql, detail__estado: sin_dato, color: "#8E8E8E" }
+
+      # --- Sin métrica todavía: se dibujan igual para ver lo que no monitoreamos
+      - record: topologia_conexion
+        expr: vector(NaN)
+        labels: { id: freeradius-r1-coa, source: freeradius, target: r1, secondarystat: "", detail__por: "CoA/Disconnect UDP 3799",
+                  detail__estado: sin_metrica, color: "#8E8E8E" }
+      - record: topologia_conexion
+        expr: vector(NaN)
+        labels: { id: facturacion-postgres, source: facturacion, target: postgres, secondarystat: "", detail__por: "SQL (docker exec)",
+                  detail__estado: sin_metrica, color: "#8E8E8E" }
+      - record: topologia_conexion
+        expr: vector(NaN)
+        labels: { id: facturacion-freeradius, source: facturacion, target: freeradius, secondarystat: "", detail__por: "CoA UDP 3799",
+                  detail__estado: sin_metrica, color: "#8E8E8E" }
