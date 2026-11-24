@@ -338,3 +338,13 @@ Decisiones y por qué:
 - Ciclo completo activo → moroso → activo cambiando **una fila** en la base.
 - Aprendizaje de diagnóstico: en la config por defecto, FreeRADIUS no escribe `Login OK/incorrect` (hace falta `auth = yes` en el log). En modo `-X` el motivo se lee en las líneas `sql: Auth-Type`, `Found Auth-Type` y `Sent Access-*`, filtrando por número de pedido.
 - Pendiente: hubo Rejects a las 22:10 (antes de `moroso`) recién prendidas las VMs, con causa no confirmada.
+
+### Paso 2: cortar sesiones activas (Disconnect / CoA)
+
+- **CoA** (*Change of Authorization*, RFC 5176): órdenes del lado de RADIUS hacia el NAS sobre una sesión **ya abierta**. `CoA-Request` cambia atributos en caliente (por ejemplo, la velocidad) y `Disconnect-Request` corta la sesión. Las dos van por **UDP 3799**, con los roles invertidos: el NAS es el que responde (ACK/NAK).
+- **Tramo 1 (FreeRADIUS → R1) ✅:** `/radius incoming set accept=yes port=3799` en R1. Prueba desde la VM freeradius: `radclient 10.10.10.1:3799 disconnect <secret>` → `Disconnect-ACK`, y R2 se reconectó solo. R1 solo acepta órdenes de los servidores cargados en `/radius` (`10.10.10.10`) y con el mismo shared secret. Primer intento fallido: se usó la contraseña del abonado en lugar del shared secret.
+- **Decisión:** el Disconnect lo pide facturación **a FreeRADIUS**, que lo reenvía a R1 (proxy de CoA). Los routers confían solo en FreeRADIUS, y facturación no necesita conocer la red.
+- **Tramo 2 (facturación → FreeRADIUS → R1), en curso:**
+  - `proxy.conf`: `home_server r1-coa` (`type = coa`, `10.10.10.1:3799`, secret de R1, reintentos `irt/mrt/mrc/mrd`) y `home_server_pool r1-coa-pool`.
+  - Sitio `coa` (plantilla de la imagen): `listen type = coa` en 3799 y `recv-coa { update control { &Home-Server-Pool := "r1-coa-pool" } }`. Se quitó `suffix` (no usamos realms).
+- **Limitación conocida:** todas las órdenes van a `r1-coa-pool`. Con **varios routers**, habría que elegir el destino según **en qué NAS está la sesión abierta** (`radacct.nasipaddress` con `acctstoptime IS NULL`), con un pool por router o fijando el destino a partir de ese dato.
