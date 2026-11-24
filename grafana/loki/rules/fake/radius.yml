@@ -1,0 +1,61 @@
+# Reglas sobre los logs (Loki ruler). Mismo formato que las de Prometheus, con LogQL.
+# "fake" es el inquilino único de Loki sin autenticación.
+#
+# Las de registro se convierten en métricas de Prometheus (remote write): se grafican
+# y se cruzan con las demás. "or vector(0)": sin líneas en la ventana la serie vale 0
+# en vez de desaparecer (un hueco no es lo mismo que cero). Las alertas van a la misma Alertmanager.
+
+groups:
+  - name: radius-logs
+    interval: 1m
+    rules:
+      # Tramo FreeRADIUS -> PostgreSQL: sin métrica propia, solo se ve en el log
+      - record: radius:sql_errores:rate5m
+        expr: 'sum(rate({container="freeradius"} |= "Error: rlm_sql" [5m])) or vector(0)'
+        labels: { instance: freeradius, service: radius }
+
+      # Qué fueron los rejects (el SLI 1 solo sabe que hubo respuesta)
+      - record: radius:login_incorrecto:rate5m
+        expr: 'sum(rate({container="freeradius"} |= "Login incorrect" [5m])) or vector(0)'
+        labels: { instance: freeradius, service: radius }
+      - record: radius:login_ok:rate5m
+        expr: 'sum(rate({container="freeradius"} |= "Login OK" [5m])) or vector(0)'
+        labels: { instance: freeradius, service: radius }
+
+  - name: radius-logs-alertas
+    interval: 1m
+    rules:
+      # Con la base caída FreeRADIUS no deja de responder: rechaza a todos
+      # ("Invalid user" -> Access-Reject). Para el SLI 1 un reject es una respuesta
+      # válida, así que esta caída NO se ve en las métricas: es un síntoma de usuario
+      # que solo muestra el log (verificado 24/11 deteniendo postgres).
+      - alert: FreeradiusSinBase
+        expr: 'sum(count_over_time({container="freeradius"} |= "Error: rlm_sql" [2m])) > 0'
+        for: 1m
+        labels: { severity: page, service: radius }
+        annotations:
+          summary: "FreeRADIUS no puede consultar PostgreSQL: rechaza a todos los abonados"
+          description: "Errores de rlm_sql en el log de FreeRADIUS. Los abonados nuevos reciben Access-Reject (Invalid user) aunque su contraseña sea correcta; el SLI 1 no lo ve porque un reject cuenta como respuesta."
+          runbook: >-
+            1) ¿PostgreSQL arriba? pg_up en el dashboard PostgreSQL; vagrant ssh db -c 'docker ps'.
+            2) Si está arriba: conexiones (PostgresConexionesAltas), pg_hba.conf (usuario radius desde
+               10.10.10.10) y la contraseña DB_RADIUS_PASSWORD en freeradius/.env.
+            3) Logs: {container="freeradius"} |= "rlm_sql" en Grafana (Explore, Loki).
+            Al volver la base, FreeRADIUS reconecta solo (reintenta cada 30 s).
+
+      # Muchas contraseñas mal desde el mismo equipo (MAC = Calling-Station-Id que
+      # manda R1). Las métricas no distinguen esto de un abonado que se olvidó la clave.
+      - alert: PosibleFuerzaBruta
+        expr: |
+          sum by (mac) (count_over_time({container="freeradius"} |= "Login incorrect" |= "client r1"
+            | regexp "cli (?P<mac>[0-9A-Fa-f:.-]+)" [5m])) > 20
+        for: 0m
+        labels: { severity: ticket, service: radius }
+        annotations:
+          summary: "{{ $value }} logins fallidos en 5 min desde la MAC {{ $labels.mac }}"
+          description: "Un mismo equipo prueba contraseñas (un usuario o varios). Puede ser un ataque o un router mal configurado reintentando."
+          runbook: >-
+            1) Loki: {container="freeradius"} |= "{{ $labels.mac }}" -> ¿qué usuarios prueba y con qué motivo?
+            2) Un solo usuario y siempre el mismo motivo: router del abonado con la clave vieja (avisar al abonado).
+            3) Muchos usuarios: ataque. Bloquear la MAC en R1 (/interface pppoe-server, /ppp profile) y revisar
+               radpostauth.

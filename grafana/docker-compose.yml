@@ -19,6 +19,7 @@ services:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=35d   # SLO mensual: 30 días + margen
       - --web.enable-lifecycle              # recargar config con POST /-/reload
+      - --web.enable-remote-write-receiver  # recibe las métricas que Loki calcula de los logs
     ports:
       - "9090:9090"
     volumes:

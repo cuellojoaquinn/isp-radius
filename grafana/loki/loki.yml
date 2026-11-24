@@ -51,5 +51,24 @@ compactor:
   retention_delete_delay: 2h
   delete_request_store: filesystem
 
+# Reglas sobre los logs (grafana/loki/rules/fake/, "fake" = inquilino único sin auth).
+#   reglas de registro -> métricas que Loki manda a Prometheus por remote write
+#   alertas            -> la misma Alertmanager que usa Prometheus
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /etc/loki/rules
+  rule_path: /loki/ruler-tmp
+  evaluation_interval: 1m
+  alertmanager_url: http://alertmanager:9093
+  enable_api: true
+  wal:
+    dir: /loki/ruler-wal
+  remote_write:
+    enabled: true
+    client:
+      url: http://prometheus:9090/api/v1/write
+
 analytics:
   reporting_enabled: false

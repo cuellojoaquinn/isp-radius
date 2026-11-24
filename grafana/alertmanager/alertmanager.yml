@@ -1,4 +1,5 @@
-# Alertmanager — qué hacer con las alertas que dispara Prometheus.
+# Alertmanager — qué hacer con las alertas que disparan Prometheus (métricas) y
+# Loki (logs, grafana/loki/rules/).
 #
 # Por ahora sin canal de aviso: las alertas se ven en http://localhost:9093 y en
 # Grafana. Para sumar un canal (Telegram) o el agente de diagnóstico (webhook) se
@@ -36,6 +37,12 @@ inhibit_rules:
   # no avisar además por el target de mktxp (mismo origen: R1).
   - source_matchers: [alertname="R1SinAcceso"]
     target_matchers: [alertname="TargetCaido", instance="r1"]
+
+  # FreeRADIUS sin base (sale del log): los timeouts de accounting que ve R1 y
+  # queman los SLO son el mismo problema. Un aviso, con la causa probable.
+  - source_matchers: [alertname="FreeradiusSinBase"]
+    target_matchers: [alertname=~"Autenticacion.*"]
+    equal: [service]
 
 receivers:
   - name: ninguno

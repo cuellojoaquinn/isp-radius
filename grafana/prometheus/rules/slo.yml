@@ -21,6 +21,10 @@
 #
 # Con poco tráfico (laboratorio) una ventana sin pedidos da NaN y la alerta no
 # dispara: no hay pedidos fallando, no hay síntoma.
+#
+# Punto ciego del SLI 1: con PostgreSQL caído FreeRADIUS no deja de responder,
+# rechaza a todos (Invalid user -> Access-Reject) y un reject cuenta como respuesta.
+# Lo cubre la alerta FreeradiusSinBase, que sale del log (grafana/loki/rules/).
 
 groups:
   # ---------------------------------------------------------------- SLIs
@@ -82,7 +86,7 @@ groups:
             2) routeros_radius_bad_replies sube -> el servidor responde pero R1 descarta: shared secret distinto
                (/radius en R1 vs RADIUS_SECRET_R1 en freeradius/.env).
             3) FreeRADIUS recibe y descarta (freeradius_total_auth_dropped_requests) o no responde -> el servidor
-               o la base: docker logs freeradius; ¿PostgreSQL arriba? (pg_up).
+               o la base: radius:sql_errores:rate5m > 0 (sale del log, ver FreeradiusSinBase); ¿PostgreSQL arriba? (pg_up).
             Los abonados ya conectados siguen funcionando; los nuevos no entran (bitácora 19/11).
 
       - alert: AutenticacionQuemaLenta
