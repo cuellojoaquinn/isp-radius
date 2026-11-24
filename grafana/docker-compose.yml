@@ -4,7 +4,7 @@
 #   grafana       solo visualización (datasources y dashboards en provisioning/)
 #   loki          almacén de logs: los reciben los Alloy de cada VM (10.10.10.30:3100)
 #   node-exporter recursos de esta VM
-#   alloy         logs de esta VM hacia Loki
+#   alloy         logs de esta VM y syslog de R1 hacia Loki
 #
 # Las interfaces web se publican en todas las interfaces de la VM: el Vagrantfile
 # las redirige a 127.0.0.1 del host (la red gestion no es accesible desde el host).
@@ -126,8 +126,10 @@ services:
       - --server.http.listen-addr=0.0.0.0:12345
     ports:
       - "10.10.10.30:12345:12345"   # métricas de Alloy para Prometheus, solo en gestion
+      - "10.10.10.30:1514:1514/udp" # syslog de R1 (solo en esta VM)
     volumes:
       - ../alloy/journal.alloy:/etc/alloy/isp-radius/journal.alloy:ro
+      - ./alloy/syslog-r1.alloy:/etc/alloy/isp-radius/syslog-r1.alloy:ro
       - /var/log/journal:/var/log/journal:ro
       - /etc/machine-id:/etc/machine-id:ro
       - alloy-data:/var/lib/alloy/data

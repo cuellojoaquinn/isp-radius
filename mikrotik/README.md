@@ -3,7 +3,7 @@
 | Archivo | Equipo |
 |---|---|
 | `r1.rsc` | R1: NAS / servidor PPPoE `isp` sobre `vlan-acceso`, solo CHAP, RADIUS en `10.10.10.10` |
-| `r1-monitoreo.rsc` | R1: usuario `monitor` (grupo `monitoreo`: `read,api,test`) solo desde `10.10.10.30`, y API limitada a esa IP |
+| `r1-monitoreo.rsc` | R1: usuario `monitor` (grupo `monitoreo`: `read,api,test`) solo desde `10.10.10.30`, y API limitada a esa IP; logs por syslog al Alloy de `10.10.10.30:1514` |
 | `r2-abonado1.rsc` | R2: abonado1, cliente PPPoE `wan-pppoe` sobre `vlan-acceso` (VLAN 100) |
 
 En VirtualBox, `scripts/crear-chr.sh r1|r2` crea el router y `scripts/configurar-chr.sh r1|r2` aplica estos archivos por consola serie (ver README principal). El script completa lo que el export oculta (secret del RADIUS, contraseñas) y resuelve tres diferencias entre un CHR nuevo y un export:
@@ -13,6 +13,8 @@ En VirtualBox, `scripts/crear-chr.sh r1|r2` crea el router y `scripts/configurar
 - **`/port set 1`:** el CHR de VirtualBox tiene un solo puerto serie. Se saltea.
 
 **Por qué `test` en el usuario de monitoreo:** `/radius monitor` responde `not enough permissions` con solo `read,api`. `test` habilita comandos de diagnóstico (ping, monitor) pero no cambiar configuración (eso es `write`).
+
+**Logs de R1 (syslog):** el formato `syslog` de RouterOS es RFC 3164 pero no incluye los tópicos; el formato `default` los incluye pero sin cabecera syslog (Alloy solo lo acepta en modo experimental). Por eso se usa `syslog` y cada regla agrega un `prefix` (`ppp`, `radius`), que en Loki queda como la etiqueta `topic` (el resto es `sistema`). Las reglas no se solapan para no mandar líneas repetidas. En un R1 ya configurado se aplica pegando el bloque `/system logging` de `r1-monitoreo.rsc`.
 
 Guardar acá el export de R1:
 

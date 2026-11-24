@@ -11,3 +11,18 @@ add name=monitoreo policy=read,api,test comment="exporters de Prometheus (solo l
 add name=monitor group=monitoreo address=10.10.10.30/32 comment="VM grafana"
 /ip service
 set api address=10.10.10.30/32
+
+# Logs de R1 hacia Loki: syslog RFC 3164 por UDP al Alloy de la VM grafana
+# (grafana/alloy/syslog-r1.alloy). El formato syslog de RouterOS no lleva los
+# tópicos: cada regla pone un prefijo (ppp, radius) que Alloy usa como etiqueta.
+# Sin debug. Las reglas no se solapan (si no, R1 mandaría la línea dos veces).
+/system logging action
+add name=loki target=remote remote=10.10.10.30 remote-port=1514 remote-log-format=syslog syslog-time-format=bsd-syslog syslog-facility=local0
+/system logging
+add topics=ppp,!debug prefix=ppp action=loki
+add topics=pppoe,!ppp,!debug prefix=ppp action=loki
+add topics=radius,!debug prefix=radius action=loki
+add topics=info,!ppp,!pppoe,!radius,!debug action=loki
+add topics=warning,!ppp,!pppoe,!radius,!debug action=loki
+add topics=error,!ppp,!pppoe,!radius,!debug action=loki
+add topics=critical,!ppp,!pppoe,!radius,!debug action=loki

@@ -1,0 +1,47 @@
+// Syslog de R1 (solo en el Alloy de la VM grafana). Se carga junto con
+// alloy/journal.alloy (mismo directorio): usa su loki.write "loki".
+//
+// R1 manda RFC 3164 (remote-log-format=syslog, hora BSD) por UDP a 10.10.10.30:1514,
+// ver mikrotik/r1-monitoreo.rsc. El formato syslog de RouterOS no incluye los
+// tópicos: cada regla de R1 pone un prefijo (ppp, radius) que llega como app name.
+//
+// Etiquetas: instance=r1; topic = ppp | radius | sistema; service = radius para el
+// tópico radius y pppoe para el resto (igual que los jobs r1-* de Prometheus);
+// level = severidad syslog. La hora es la de llegada (RFC 3164 no trae año ni zona).
+
+loki.source.syslog "r1" {
+  listener {
+    address       = "0.0.0.0:1514"
+    protocol      = "udp"
+    syslog_format = "rfc3164"
+    labels        = { job = "syslog", instance = "r1", service = "pppoe" }
+  }
+  relabel_rules = loki.relabel.r1.rules
+  forward_to    = [loki.write.loki.receiver]
+}
+
+loki.relabel "r1" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__syslog_message_app_name"]
+    regex         = "(.+)"
+    target_label  = "topic"
+  }
+  rule {
+    source_labels = ["topic"]
+    regex         = ""
+    target_label  = "topic"
+    replacement   = "sistema"
+  }
+  rule {
+    source_labels = ["topic"]
+    regex         = "radius"
+    target_label  = "service"
+    replacement   = "radius"
+  }
+  rule {
+    source_labels = ["__syslog_message_severity"]
+    target_label  = "level"
+  }
+}
