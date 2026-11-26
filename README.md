@@ -12,7 +12,7 @@ ISP de laboratorio: los abonados se conectan por **PPPoE** a un **MikroTik (R1)*
 ├── scripts/
 │   ├── base.sh              provisión común: DNS fijo, Docker y logs al journal
 │   ├── test.sh              prueba automática del lab (corre al levantar freeradius)
-│   ├── crear-chr.sh         crea R1 o R2 (MikroTik CHR) en VirtualBox
+│   ├── crear-chr.sh         crea R1, R2 o R3 (MikroTik CHR) en VirtualBox
 │   ├── configurar-chr.sh    aplica mikrotik/*.rsc por consola serie
 │   └── chr-console.py       ejecuta comandos de RouterOS por la consola serie
 ├── freeradius/              compose, clients.conf, módulo sql, virtual server status, exporter
@@ -21,7 +21,7 @@ ISP de laboratorio: los abonados se conectan por **PPPoE** a un **MikroTik (R1)*
 │   │                        (datasources y dashboards), mktxp, r1-exporter, Loki (logs y
 │   │                        sus reglas) y el syslog de R1
 ├── alloy/                   recolector de logs (Alloy), config compartida por las tres VMs
-└── mikrotik/                exports de R1 y R2, usuario de monitoreo de R1
+└── mikrotik/                exports de R1, R2 (abonado1) y R3 (abonado2), tráfico de prueba, monitoreo de R1
 ```
 
 ## Redes
@@ -49,6 +49,7 @@ Requisitos: VirtualBox y Vagrant.
    | contraseña del usuario `radius` | `DB_RADIUS_PASSWORD` (freeradius) = `RADIUS_DB_PASSWORD` (db) |
    | contraseña del usuario `grafana` | `GRAFANA_DB_PASSWORD` (db) = `GRAFANA_DB_PASSWORD` (grafana) |
    | contraseña PPPoE de abonado1 | `R2_PPPOE_PASSWORD` (mikrotik) = `radcheck` (`db/init/03-datos.sql`) |
+   | contraseña PPPoE de abonado2 | `R3_PPPOE_PASSWORD` (mikrotik) = `radcheck` (`db/init/03-datos.sql`) |
 
 2. **VMs de servidores** (en este orden: la base primero):
 
@@ -56,11 +57,17 @@ Requisitos: VirtualBox y Vagrant.
    vagrant up db freeradius grafana
    ```
 
-3. **R1 y R2 (MikroTik CHR 7.20.4).** No hay boxes de CHR prácticas para Vagrant: los crean estos scripts, que bajan la imagen oficial, arman la VM con las NICs en el orden que esperan los exports y aplican `mikrotik/*.rsc` por la consola serie (completando lo que el export oculta desde los `.env`):
+3. **R1, R2 y R3 (MikroTik CHR 7.20.4).** No hay boxes de CHR prácticas para Vagrant: los crean estos scripts, que bajan la imagen oficial, arman la VM con las NICs en el orden que esperan los exports y aplican `mikrotik/*.rsc` por la consola serie (completando lo que el export oculta desde los `.env`):
 
    ```bash
    scripts/crear-chr.sh r1 && scripts/configurar-chr.sh r1   # NAS / servidor PPPoE
    scripts/crear-chr.sh r2 && scripts/configurar-chr.sh r2   # abonado1 (pppoe-client)
+   scripts/crear-chr.sh r3 && scripts/configurar-chr.sh r3   # abonado2 (pppoe-client)
+   ```
+
+   R2 y R3 traen un scheduler `trafico` (`mikrotik/abonado-trafico.rsc`) que genera tráfico de fondo hacia R1 (~220 kbit/s, 30 s de cada minuto), para que el accounting y "Tráfico por abonado" tengan datos. Para ver el tope del plan, lanzar a mano un `/tool bandwidth-test` desde el abonado. Para apagarlo: `/system scheduler disable trafico`.
+
+   ```bash
    ```
 
    Comandos sueltos en un router:
@@ -78,6 +85,7 @@ Las VMs no arrancan solas. Primero los servidores y **después** los routers: si
 vagrant up db freeradius grafana
 VBoxManage startvm isp-radius_r1 --type headless
 VBoxManage startvm isp-radius_r2 --type headless
+VBoxManage startvm isp-radius_r3 --type headless
 ```
 
 Si R1 se apagó con abonados conectados, la sesión queda abierta en `radacct` (sin Stop). Al arrancar, R1 manda `Accounting-On` y FreeRADIUS la cierra.

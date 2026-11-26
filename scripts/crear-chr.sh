@@ -1,5 +1,5 @@
 #!/bin/bash
-# Crea un MikroTik CHR del laboratorio en VirtualBox (R1 o R2).
+# Crea un MikroTik CHR del laboratorio en VirtualBox (R1, R2 o R3).
 # No hay boxes de CHR prácticas para Vagrant: por eso es un script aparte.
 #
 #   r1  NAS / servidor PPPoE (VM isp-radius_r1)
@@ -13,13 +13,15 @@
 #       NIC2 -> intnet "acceso"   (default-name ether2; r2-abonado1.rsc lo renombra a ether3)
 #       Solo 2 NICs: con una tercera, el rename a ether3 choca con el nombre existente.
 #
+#   r3  abonado2, cliente PPPoE (VM isp-radius_r3): mismas NICs que r2
+#
 #   Consola serie en un socket unix local (sin red): la usa scripts/chr-console.py
 #
-# Uso:  scripts/crear-chr.sh r1|r2
-# Después: scripts/configurar-chr.sh r1|r2
+# Uso:  scripts/crear-chr.sh r1|r2|r3
+# Después: scripts/configurar-chr.sh r1|r2|r3
 set -euo pipefail
 
-ROL=${1:?Uso: $0 r1|r2}
+ROL=${1:?Uso: $0 r1|r2|r3}
 VERSION=7.20.4                       # la misma versión que los exports de mikrotik/
 VM="isp-radius_$ROL"
 DIR="$HOME/VirtualBox VMs/$VM"
@@ -28,8 +30,8 @@ ZIP="$CACHE/chr-$VERSION.vdi.zip"
 
 case "$ROL" in
   r1) NICS=(--nic1 intnet --intnet1 gestion --nic2 intnet --intnet2 acceso --nic3 intnet --intnet3 lan1) ;;
-  r2) NICS=(--nic1 null --nic2 intnet --intnet2 acceso) ;;
-  *)  echo "Rol desconocido: $ROL (r1 o r2)"; exit 2 ;;
+  r2|r3) NICS=(--nic1 null --nic2 intnet --intnet2 acceso) ;;
+  *)  echo "Rol desconocido: $ROL (r1, r2 o r3)"; exit 2 ;;
 esac
 
 if VBoxManage showvminfo "$VM" >/dev/null 2>&1; then

@@ -44,7 +44,7 @@
 <body>
 <main>
   <h1>Topología del laboratorio — RADIUS, accounting y monitoreo</h1>
-  <p class="sub">Proyecto final ASL · UTN FRM · estado al 19-nov-2026</p>
+  <p class="sub">Proyecto final ASL · UTN FRM · estado al 26-nov-2026</p>
 
   <figure>
     <svg viewBox="0 85 1180 565" role="img" aria-label="Topología: los abonados se conectan por PPPoE a R1 en la red de acceso; R1 consulta a FreeRADIUS por la red de gestión; FreeRADIUS lee y escribe en PostgreSQL; Grafana leerá PostgreSQL. Las VMs de servidores salen a internet por la Shared Network de UTM.">
@@ -71,12 +71,12 @@
         <text x="240" y="240" text-anchor="middle" font-size="11" fill="#c2410c" font-weight="700">① PPPoE</text>
 
         <!-- abonado2 -->
-        <rect x="30" y="360" width="180" height="90" rx="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <rect x="30" y="360" width="180" height="90" rx="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
         <text x="46" y="384" font-size="14" font-weight="700">abonado2</text>
-        <text x="46" y="403" font-size="11" opacity="0.75">en la base (radcheck)</text>
-        <text x="46" y="421" font-size="11" opacity="0.75">plan-50m (radusergroup)</text>
-        <text x="46" y="439" font-size="11" opacity="0.6" font-style="italic">sin router en el lab</text>
-        <line x1="210" y1="405" x2="270" y2="405" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="46" y="403" font-size="11" opacity="0.75">R3 · MikroTik · pppoe-client</text>
+        <text x="46" y="421" font-size="11" opacity="0.75">IP del pool · plan-50m</text>
+        <text x="46" y="439" font-size="11" fill="#c2410c" font-weight="600">auth RADIUS · 50M/50M</text>
+        <line x1="210" y1="405" x2="270" y2="405" stroke="#c2410c" stroke-width="2.5"/>
 
         <!-- ===== R1 ===== -->
         <line x1="270" y1="330" x2="340" y2="330" stroke="currentColor" stroke-width="1.5"/>
