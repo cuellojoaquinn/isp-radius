@@ -37,6 +37,9 @@ add address=192.168.1.0/24 dns-server=192.168.1.1 gateway=192.168.1.1
 set interim-update=5m use-radius=yes
 /radius
 add address=10.10.10.10 service=ppp
+# Acepta Disconnect/CoA de FreeRADIUS (órdenes de corte de facturación); faltaba en el export
+/radius incoming
+set accept=yes port=3799
 /system identity
 set name=R1
 /system logging
