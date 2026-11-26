@@ -23,6 +23,9 @@
 #   sano #73BF69 · degradado #FADE2A · falla #F2495C · info #5794F2 (sin salud propia)
 #   sin_dato #8E8E8E (no sé: exporter caído, sin tráfico) · sin_metrica #8E8E8E (no lo medimos)
 # Gris NO es verde: un exporter caído o una ventana sin tráfico no prueban que esté bien.
+#
+# Facturación no tiene proceso ni exporter: su nodo y sus conexiones salen del log de
+# los jobs (ruler de Loki, loki/rules/fake/facturacion.yml).
 # Valor NaN = no hay número que mostrar.
 
 groups:
@@ -83,11 +86,48 @@ groups:
         expr: absent(pg_up) * NaN
         labels: { <<: *n_postgres, detail__estado: sin_dato, color: "#8E8E8E" }
 
-      # --- Facturación (jobs en cron de la VM db): todavía sin métrica
+      # --- Facturación (jobs en cron de la VM db). Sin proceso ni exporter: todo sale del
+      #     log de los jobs (ruler de Loki, loki/rules/fake/facturacion.yml).
+      #     ¿Corre? rehabilitar corre cada 5 min: tiene que haber corrido en 15 min.
+      #     Número: corridas en 15 min (de los dos jobs).
       - record: topologia_nodo
-        expr: vector(NaN)
-        labels: { id: facturacion, instancia: db, title: Facturación, subtitle: "jobs en cron (VM db)", secondarystat: "",
-                  detail__estado: sin_metrica, color: "#8E8E8E" }
+        expr: |
+          sum(facturacion:corridas:count15m)
+          and on() (max(facturacion:corridas:count15m{tarea="rehabilitar"}) > 0)
+          and on() (max(facturacion:fallas:count15m) == 0)
+        labels:
+          <<: &n_facturacion { id: facturacion, instancia: db, title: Facturación, subtitle: "jobs en cron (VM db)", secondarystat: "corridas/15 min" }
+          detail__estado: sano
+          color: "#73BF69"
+      # Corre, pero alguna corrida terminó con error
+      - record: topologia_nodo
+        expr: |
+          sum(facturacion:corridas:count15m)
+          and on() (max(facturacion:corridas:count15m{tarea="rehabilitar"}) > 0)
+          and on() (max(facturacion:fallas:count15m) > 0)
+          and on() (max(facturacion:fallas:count15m) < sum(facturacion:corridas:count15m))
+        labels: { <<: *n_facturacion, detail__estado: degradado, color: "#FADE2A" }
+      # Todas las corridas fallan, o no corre aunque el log de la VM db sí llega (Alloy arriba)
+      - record: topologia_nodo
+        expr: |
+          (
+            sum(facturacion:corridas:count15m)
+            and on() (max(facturacion:corridas:count15m{tarea="rehabilitar"}) > 0)
+            and on() (max(facturacion:fallas:count15m) >= sum(facturacion:corridas:count15m))
+          )
+          or on()
+          (
+            sum(facturacion:corridas:count15m)
+            and on() (max(facturacion:corridas:count15m{tarea="rehabilitar"}) == 0)
+            and on() (max(up{job="alloy", instance="db"}) == 1)
+          )
+        labels: { <<: *n_facturacion, detail__estado: falla, color: "#F2495C" }
+      # No sé: sin la métrica (ruler de Loki) o sin corridas porque el log no llega (Alloy de db caído)
+      - record: topologia_nodo
+        expr: |
+          ((max(facturacion:corridas:count15m{tarea="rehabilitar"}) == 0) unless on() (max(up{job="alloy", instance="db"}) == 1)) * NaN
+          or on() (absent(facturacion:corridas:count15m{tarea="rehabilitar"}) * NaN)
+        labels: { <<: *n_facturacion, detail__estado: sin_dato, color: "#8E8E8E" }
 
       # ============================================================ conexiones
       # --- Abonados -> R1 (PPPoE). Salud: lugar en el pool. Número: sesiones
@@ -154,16 +194,56 @@ groups:
           or on() (absent(radius:sql_errores:rate5m) * NaN)
         labels: { <<: *c_sql, detail__estado: sin_dato, color: "#8E8E8E" }
 
-      # --- Sin métrica todavía: se dibujan igual para ver lo que no monitoreamos
+      # --- Facturación -> PostgreSQL (SQL). Salud: errores de psql en el log de los jobs.
+      #     Número: errores en 15 min.
+      - record: topologia_conexion
+        expr: (max(facturacion:sql_errores:count15m) == 0) and on() (sum(facturacion:corridas:count15m) > 0)
+        labels:
+          <<: &c_fact_sql { id: facturacion-postgres, source: facturacion, target: postgres, secondarystat: "errores sql/15 min", detail__por: "SQL (docker exec)" }
+          detail__estado: sano
+          color: "#73BF69"
+      - record: topologia_conexion
+        expr: max(facturacion:sql_errores:count15m) > 0
+        labels: { <<: *c_fact_sql, detail__estado: falla, color: "#F2495C" }
+      # Sin corridas en la ventana (nadie usó la base) o sin la métrica: no sé
+      - record: topologia_conexion
+        expr: |
+          ((max(facturacion:sql_errores:count15m) == 0) unless on() (sum(facturacion:corridas:count15m) > 0)) * NaN
+          or on() (absent(facturacion:sql_errores:count15m) * NaN)
+        labels: { <<: *c_fact_sql, detail__estado: sin_dato, color: "#8E8E8E" }
+
+      # --- Facturación -> FreeRADIUS (Disconnect). Salud: resultado de los Disconnect de
+      #     suspender en 24 h. Solo hay cuando se suspende a alguien con sesión abierta:
+      #     casi siempre gris, y es honesto (sin pedidos no hay nada que juzgar).
+      #     Número: Disconnect enviados en 24 h.
+      - record: topologia_conexion
+        expr: |
+          (max(facturacion:disconnect_ok:count24h) + max(facturacion:disconnect_fallas:count24h))
+          and on() (max(facturacion:disconnect_ok:count24h) > 0) and on() (max(facturacion:disconnect_fallas:count24h) == 0)
+        labels:
+          <<: &c_fact_coa { id: facturacion-freeradius, source: facturacion, target: freeradius, secondarystat: "disconnect/24 h", detail__por: "Disconnect UDP 3799" }
+          detail__estado: sano
+          color: "#73BF69"
+      - record: topologia_conexion
+        expr: |
+          (max(facturacion:disconnect_ok:count24h) + max(facturacion:disconnect_fallas:count24h))
+          and on() (max(facturacion:disconnect_ok:count24h) > 0) and on() (max(facturacion:disconnect_fallas:count24h) > 0)
+        labels: { <<: *c_fact_coa, detail__estado: degradado, color: "#FADE2A" }
+      - record: topologia_conexion
+        expr: |
+          (max(facturacion:disconnect_ok:count24h) + max(facturacion:disconnect_fallas:count24h))
+          and on() (max(facturacion:disconnect_ok:count24h) == 0) and on() (max(facturacion:disconnect_fallas:count24h) > 0)
+        labels: { <<: *c_fact_coa, detail__estado: falla, color: "#F2495C" }
+      - record: topologia_conexion
+        expr: |
+          ((max(facturacion:disconnect_ok:count24h) + max(facturacion:disconnect_fallas:count24h)) == 0) * NaN
+          or on() (max(absent(facturacion:disconnect_ok:count24h) or absent(facturacion:disconnect_fallas:count24h)) * NaN)
+        labels: { <<: *c_fact_coa, detail__estado: sin_dato, color: "#8E8E8E" }
+
+      # --- Sin métrica: se dibuja igual para ver lo que no monitoreamos. Un Disconnect-ACK
+      #     de facturación prueba también este tramo, pero un fallo no dice cuál de los dos
+      #     falló: no se le asigna estado propio.
       - record: topologia_conexion
         expr: vector(NaN)
         labels: { id: freeradius-r1-coa, source: freeradius, target: r1, secondarystat: "", detail__por: "CoA/Disconnect UDP 3799",
-                  detail__estado: sin_metrica, color: "#8E8E8E" }
-      - record: topologia_conexion
-        expr: vector(NaN)
-        labels: { id: facturacion-postgres, source: facturacion, target: postgres, secondarystat: "", detail__por: "SQL (docker exec)",
-                  detail__estado: sin_metrica, color: "#8E8E8E" }
-      - record: topologia_conexion
-        expr: vector(NaN)
-        labels: { id: facturacion-freeradius, source: facturacion, target: freeradius, secondarystat: "", detail__por: "CoA UDP 3799",
                   detail__estado: sin_metrica, color: "#8E8E8E" }

@@ -26,6 +26,13 @@ tests:
       - { series: 'pg_up{instance="db"}', values: '1x40' }
       - { series: 'pg_stat_activity_count{instance="db",state="idle"}', values: '4x40' }
       - { series: 'radius:sql_errores:rate5m{instance="freeradius",service="radius"}', values: '0x40' }
+      - { series: 'up{job="alloy",instance="db"}', values: '1x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="rehabilitar"}', values: '3x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="suspender"}', values: '0x40' }
+      - { series: 'facturacion:fallas:count15m', values: '0x40' }
+      - { series: 'facturacion:sql_errores:count15m', values: '0x40' }
+      - { series: 'facturacion:disconnect_ok:count24h', values: '0x40' }
+      - { series: 'facturacion:disconnect_fallas:count24h', values: '0x40' }
     promql_expr_test:
       - expr: count by (id, detail__estado) (topologia_nodo)
         eval_time: 15m
@@ -34,7 +41,7 @@ tests:
           - { labels: '{id="r1", detail__estado="sano"}', value: 1 }
           - { labels: '{id="freeradius", detail__estado="sano"}', value: 1 }
           - { labels: '{id="postgres", detail__estado="sano"}', value: 1 }
-          - { labels: '{id="facturacion", detail__estado="sin_metrica"}', value: 1 }
+          - { labels: '{id="facturacion", detail__estado="sano"}', value: 1 }
       - expr: count by (id, detail__estado, color) (topologia_conexion)
         eval_time: 15m
         exp_samples:
@@ -42,8 +49,9 @@ tests:
           - { labels: '{id="r1-freeradius", detail__estado="sano", color="#73BF69"}', value: 1 }
           - { labels: '{id="freeradius-postgres", detail__estado="sano", color="#73BF69"}', value: 1 }
           - { labels: '{id="freeradius-r1-coa", detail__estado="sin_metrica", color="#8E8E8E"}', value: 1 }
-          - { labels: '{id="facturacion-postgres", detail__estado="sin_metrica", color="#8E8E8E"}', value: 1 }
-          - { labels: '{id="facturacion-freeradius", detail__estado="sin_metrica", color="#8E8E8E"}', value: 1 }
+          - { labels: '{id="facturacion-postgres", detail__estado="sano", color="#73BF69"}', value: 1 }
+          # Sin suspensiones no hay Disconnect: no sé (gris), no verde
+          - { labels: '{id="facturacion-freeradius", detail__estado="sin_dato", color="#8E8E8E"}', value: 1 }
       # El número de la conexión RADIUS: pedidos por minuto que manda R1
       - expr: topologia_conexion{id="r1-freeradius"}
         eval_time: 15m
@@ -129,13 +137,15 @@ tests:
           - { labels: '{id="r1", detail__estado="sin_dato"}', value: 1 }
           - { labels: '{id="freeradius", detail__estado="sin_dato"}', value: 1 }
           - { labels: '{id="postgres", detail__estado="sin_dato"}', value: 1 }
-          - { labels: '{id="facturacion", detail__estado="sin_metrica"}', value: 1 }
-      - expr: count by (id, detail__estado) (topologia_conexion{id=~"abonados-r1|r1-freeradius|freeradius-postgres"})
+          - { labels: '{id="facturacion", detail__estado="sin_dato"}', value: 1 }
+      - expr: count by (id, detail__estado) (topologia_conexion{id=~"abonados-r1|r1-freeradius|freeradius-postgres|facturacion-.*"})
         eval_time: 5m
         exp_samples:
           - { labels: '{id="abonados-r1", detail__estado="sin_dato"}', value: 1 }
           - { labels: '{id="r1-freeradius", detail__estado="sin_dato"}', value: 1 }
           - { labels: '{id="freeradius-postgres", detail__estado="sin_dato"}', value: 1 }
+          - { labels: '{id="facturacion-postgres", detail__estado="sin_dato"}', value: 1 }
+          - { labels: '{id="facturacion-freeradius", detail__estado="sin_dato"}', value: 1 }
 
   # 7. Pool al 85 %: la conexión PPPoE en amarillo.
   - name: pool casi lleno -> pppoe amarillo
@@ -149,3 +159,134 @@ tests:
         eval_time: 5m
         exp_samples:
           - { labels: '{id="abonados-r1", detail__estado="degradado"}', value: 1 }
+
+  # 8. Base sin el esquema facturacion (nuestro lab): cada corrida de rehabilitar falla
+  #    en psql -> el nodo y la conexión SQL en rojo.
+  - name: facturacion sin esquema -> nodo y sql rojos
+    interval: 30s
+    input_series:
+      - { series: 'up{job="alloy",instance="db"}', values: '1x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="rehabilitar"}', values: '3x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="suspender"}', values: '0x40' }
+      - { series: 'facturacion:fallas:count15m', values: '3x40' }
+      - { series: 'facturacion:sql_errores:count15m', values: '3x40' }
+      - { series: 'facturacion:disconnect_ok:count24h', values: '0x40' }
+      - { series: 'facturacion:disconnect_fallas:count24h', values: '0x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_nodo{id="facturacion"})
+        eval_time: 5m
+        exp_samples:
+          - { labels: '{id="facturacion", detail__estado="falla"}', value: 1 }
+      - expr: count by (id, detail__estado) (topologia_conexion{id=~"facturacion-.*"})
+        eval_time: 5m
+        exp_samples:
+          - { labels: '{id="facturacion-postgres", detail__estado="falla"}', value: 1 }
+          - { labels: '{id="facturacion-freeradius", detail__estado="sin_dato"}', value: 1 }
+
+  # 9. El cron no corre (Alloy de db arriba: el log llegaría) -> nodo rojo; SQL sin dato.
+  - name: cron sin correr -> nodo rojo
+    interval: 30s
+    input_series:
+      - { series: 'up{job="alloy",instance="db"}', values: '1x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="rehabilitar"}', values: '0x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="suspender"}', values: '0x40' }
+      - { series: 'facturacion:fallas:count15m', values: '0x40' }
+      - { series: 'facturacion:sql_errores:count15m', values: '0x40' }
+      - { series: 'facturacion:disconnect_ok:count24h', values: '0x40' }
+      - { series: 'facturacion:disconnect_fallas:count24h', values: '0x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_nodo{id="facturacion"})
+        eval_time: 5m
+        exp_samples:
+          - { labels: '{id="facturacion", detail__estado="falla"}', value: 1 }
+      - expr: count by (id, detail__estado) (topologia_conexion{id=~"facturacion-.*"})
+        eval_time: 5m
+        exp_samples:
+          - { labels: '{id="facturacion-postgres", detail__estado="sin_dato"}', value: 1 }
+          - { labels: '{id="facturacion-freeradius", detail__estado="sin_dato"}', value: 1 }
+
+  # 10. Alloy de db caído: cero corridas no prueba que el cron esté parado -> gris.
+  - name: alloy de db caido -> nodo gris
+    interval: 30s
+    input_series:
+      - { series: 'up{job="alloy",instance="db"}', values: '0x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="rehabilitar"}', values: '0x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="suspender"}', values: '0x40' }
+      - { series: 'facturacion:fallas:count15m', values: '0x40' }
+      - { series: 'facturacion:sql_errores:count15m', values: '0x40' }
+      - { series: 'facturacion:disconnect_ok:count24h', values: '0x40' }
+      - { series: 'facturacion:disconnect_fallas:count24h', values: '0x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_nodo{id="facturacion"})
+        eval_time: 5m
+        exp_samples:
+          - { labels: '{id="facturacion", detail__estado="sin_dato"}', value: 1 }
+
+  # 11. Una de tres corridas falló (por ejemplo, un radclient que no llegó) -> amarillo.
+  - name: alguna corrida falla -> nodo amarillo
+    interval: 30s
+    input_series:
+      - { series: 'up{job="alloy",instance="db"}', values: '1x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="rehabilitar"}', values: '3x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="suspender"}', values: '0x40' }
+      - { series: 'facturacion:fallas:count15m', values: '1x40' }
+      - { series: 'facturacion:sql_errores:count15m', values: '0x40' }
+      - { series: 'facturacion:disconnect_ok:count24h', values: '0x40' }
+      - { series: 'facturacion:disconnect_fallas:count24h', values: '0x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_nodo{id="facturacion"})
+        eval_time: 5m
+        exp_samples:
+          - { labels: '{id="facturacion", detail__estado="degradado"}', value: 1 }
+
+  # 12-14. Disconnect de suspender en 24 h: todos con ACK, algunos y ninguno.
+  - name: disconnect con ack -> verde
+    interval: 30s
+    input_series:
+      - { series: 'up{job="alloy",instance="db"}', values: '1x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="rehabilitar"}', values: '3x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="suspender"}', values: '0x40' }
+      - { series: 'facturacion:fallas:count15m', values: '0x40' }
+      - { series: 'facturacion:sql_errores:count15m', values: '0x40' }
+      - { series: 'facturacion:disconnect_ok:count24h', values: '2x40' }
+      - { series: 'facturacion:disconnect_fallas:count24h', values: '0x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_conexion{id=~"facturacion-.*"})
+        eval_time: 5m
+        exp_samples:
+          - { labels: '{id="facturacion-postgres", detail__estado="sano"}', value: 1 }
+          - { labels: '{id="facturacion-freeradius", detail__estado="sano"}', value: 1 }
+
+  - name: disconnect a medias -> amarillo
+    interval: 30s
+    input_series:
+      - { series: 'up{job="alloy",instance="db"}', values: '1x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="rehabilitar"}', values: '3x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="suspender"}', values: '0x40' }
+      - { series: 'facturacion:fallas:count15m', values: '0x40' }
+      - { series: 'facturacion:sql_errores:count15m', values: '0x40' }
+      - { series: 'facturacion:disconnect_ok:count24h', values: '1x40' }
+      - { series: 'facturacion:disconnect_fallas:count24h', values: '1x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_conexion{id=~"facturacion-.*"})
+        eval_time: 5m
+        exp_samples:
+          - { labels: '{id="facturacion-postgres", detail__estado="sano"}', value: 1 }
+          - { labels: '{id="facturacion-freeradius", detail__estado="degradado"}', value: 1 }
+
+  - name: disconnect sin ack -> rojo
+    interval: 30s
+    input_series:
+      - { series: 'up{job="alloy",instance="db"}', values: '1x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="rehabilitar"}', values: '3x40' }
+      - { series: 'facturacion:corridas:count15m{tarea="suspender"}', values: '0x40' }
+      - { series: 'facturacion:fallas:count15m', values: '0x40' }
+      - { series: 'facturacion:sql_errores:count15m', values: '0x40' }
+      - { series: 'facturacion:disconnect_ok:count24h', values: '0x40' }
+      - { series: 'facturacion:disconnect_fallas:count24h', values: '2x40' }
+    promql_expr_test:
+      - expr: count by (id, detail__estado) (topologia_conexion{id=~"facturacion-.*"})
+        eval_time: 5m
+        exp_samples:
+          - { labels: '{id="facturacion-postgres", detail__estado="sano"}', value: 1 }
+          - { labels: '{id="facturacion-freeradius", detail__estado="falla"}', value: 1 }

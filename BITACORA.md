@@ -476,3 +476,16 @@ Probado en una máquina sin VirtualBox, con un lab paralelo: PostgreSQL y FreeRA
   - Dashboard **Logs**: fila *Facturación* con las corridas por job (líneas `Inicio`) y las fallas, más el log filtrable por usuario.
 - **Probado** corriendo `rehabilitar.sh` a mano con la misma línea del crontab: llegaron `Inicio` (info), el error de psql y `FALLÓ (código 2)` (error).
 - **Hallazgo:** la base de nuestro lab (VirtualBox) **no tiene el esquema `facturacion`**: se inicializó antes de `db/init/04` a `07`, y esos scripts solo corren con el volumen vacío. Tampoco hay crontab instalado. En la VM de Joaquín (UTM) sí está.
+
+
+## 2026-11-26 — Facturación en el mapa (métricas desde el log)
+
+- **Ruler de Loki** (`grafana/loki/rules/fake/facturacion.yml`): corridas por job en 15 min (líneas `Inicio`), corridas fallidas (`FALLÓ`), errores de psql y resultado de los Disconnect en 24 h (`Disconnect-ACK` / `no se pudo cortar`).
+- **Mapa** (`topologia.yml`):
+  - **Nodo Facturación:** verde si `rehabilitar` corrió en 15 min sin fallas; amarillo si alguna corrida falló; rojo si todas fallan o si no corrió con el Alloy de db arriba; gris si el log no llega.
+  - **Facturación → PostgreSQL:** rojo si hay errores de psql; gris si no hubo corridas.
+  - **Facturación → FreeRADIUS:** según los Disconnect de 24 h. Casi siempre gris, porque solo hay Disconnect cuando se suspende a alguien con sesión.
+  - **FreeRADIUS → R1 (CoA):** sigue sin métrica. Un ACK prueba los dos tramos, pero una falla no dice cuál de los dos falló.
+- **Tests:** 7 casos nuevos en `topologia_test.yml`, más los casos 1 y 6 actualizados.
+- **Bug de Loki 3.7.9:** `|~ "psql:.*(error|FATAL)"` no encuentra líneas que sí coinciden (prefijo + alternativa). Se reemplazó por `|= "psql:" != "NOTICE"`.
+- **En nuestro lab** el nodo y la conexión SQL quedan en **rojo**, y es correcto: falta el esquema `facturacion` (role "facturacion" does not exist).

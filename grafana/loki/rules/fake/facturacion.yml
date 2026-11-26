@@ -1,0 +1,42 @@
+# Métricas de los jobs de facturación, sacadas de su log (journal de la VM db, ver
+# facturacion/crontab.txt). Los jobs no exponen métricas: lo que imprimen es lo único
+# que hay. Las usa el mapa de dependencias (prometheus/rules/topologia.yml).
+#
+# Ventanas según la frecuencia de cada cosa:
+#   15 min: rehabilitar corre cada 5 min, así que en 15 min tiene que haber corrido.
+#   24 h:   los Disconnect solo salen cuando suspender (03:00) corta a alguien con sesión.
+# "or vector(0)": sin líneas la serie vale 0 (no corrió / no hubo), no desaparece.
+
+groups:
+  - name: facturacion-logs
+    interval: 1m
+    rules:
+      # ¿Corre el job? Una línea "Inicio" por corrida
+      - record: facturacion:corridas:count15m
+        expr: 'sum(count_over_time({service="facturacion", unit="facturacion-rehabilitar"} |= "Inicio" [15m])) or vector(0)'
+        labels: { instance: db, service: facturacion, tarea: rehabilitar }
+      - record: facturacion:corridas:count15m
+        expr: 'sum(count_over_time({service="facturacion", unit="facturacion-suspender"} |= "Inicio" [15m])) or vector(0)'
+        labels: { instance: db, service: facturacion, tarea: suspender }
+
+      # Corridas que terminaron con error (línea "FALLÓ (código N)" que agrega el crontab)
+      - record: facturacion:fallas:count15m
+        expr: 'sum(count_over_time({service="facturacion"} |= "FALLÓ" [15m])) or vector(0)'
+        labels: { instance: db, service: facturacion }
+
+      # Tramo Facturación -> PostgreSQL: errores de psql (no conecta, sin permiso, SQL inválido).
+      # psql antepone "psql:" a sus errores ("psql: error: ...", "psql:<stdin>:3: ERROR: ...")
+      # y a los avisos NOTICE, que no son errores. (Un regex "psql:.*(error|FATAL)" no
+      # encuentra nada en Loki 3.7.9 aunque debería: por eso dos filtros simples.)
+      - record: facturacion:sql_errores:count15m
+        expr: 'sum(count_over_time({service="facturacion"} |= "psql:" != "NOTICE" [15m])) or vector(0)'
+        labels: { instance: db, service: facturacion }
+
+      # Tramo Facturación -> FreeRADIUS -> R1: resultado de cada Disconnect de suspender.
+      # Un ACK prueba la cadena entera (FreeRADIUS lo reenvió y R1 cortó la sesión).
+      - record: facturacion:disconnect_ok:count24h
+        expr: 'sum(count_over_time({service="facturacion"} |= "Disconnect-ACK" [24h])) or vector(0)'
+        labels: { instance: db, service: facturacion }
+      - record: facturacion:disconnect_fallas:count24h
+        expr: 'sum(count_over_time({service="facturacion"} |= "no se pudo cortar" [24h])) or vector(0)'
+        labels: { instance: db, service: facturacion }
