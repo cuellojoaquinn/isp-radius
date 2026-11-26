@@ -9,7 +9,8 @@
 // desde ahí: mientras tanto los logs esperan en el journal de la VM (14 días, 500 MB).
 //
 // Etiquetas: las mismas instance/service que en Prometheus (vienen del compose de
-// cada VM), más container (contenedor) o unit (servicio del sistema).
+// cada VM), más container (contenedor) o unit (servicio del sistema), y level.
+// Los jobs de facturación llevan service="facturacion" (no el de la VM).
 
 discovery.relabel "journal" {
   targets = []
@@ -41,6 +42,26 @@ discovery.relabel "journal" {
     regex         = "kernel"
     target_label  = "unit"
     replacement   = "kernel"
+  }
+
+  // Jobs de facturación (cron en la VM db, ver facturacion/crontab.txt): escriben con
+  // systemd-cat -t facturacion-<job>. Sin esto quedarían como unit="cron.service".
+  rule {
+    source_labels = ["__journal_syslog_identifier"]
+    regex         = "(facturacion-.+)"
+    target_label  = "unit"
+  }
+  rule {
+    source_labels = ["__journal_syslog_identifier"]
+    regex         = "facturacion-.+"
+    target_label  = "service"
+    replacement   = "facturacion"
+  }
+
+  // Nivel (err, warning, info...): Grafana lo usa para colorear y filtrar
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "level"
   }
 }
 

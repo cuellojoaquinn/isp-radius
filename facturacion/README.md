@@ -41,7 +41,7 @@ docker exec -i postgres psql -U facturacion -d radius -c \
 facturacion/rehabilitar.sh
 ```
 
-Programados con `cron`: ver `crontab.txt`. La salida queda en `facturacion/jobs.log`.
+Programados con `cron`: ver `crontab.txt`. La salida va al **journal** de la VM db con `systemd-cat -t facturacion-<job>` (errores con nivel `error` y una línea `FALLÓ (código N)` si el script termina mal). Alloy la lleva a Loki: dashboard **Logs**, fila *Facturación*, con las corridas por job (si las barras se cortan, el job no está corriendo). En la VM: `journalctl -t facturacion-suspender -t facturacion-rehabilitar`.
 
 Requisitos: `radclient` (paquete `freeradius-utils`), el sitio `coa` en FreeRADIUS y `/radius incoming` habilitado en R1.
 

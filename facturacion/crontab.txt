@@ -1,6 +1,13 @@
 # Instalar en la VM db (reemplaza el crontab completo, no duplica):
 #   crontab /ruta/al/repo/facturacion/crontab.txt
 # Ajustar REPO a la ruta del repo en la VM.
+#
+# La salida va al journal de la VM (systemd-cat), no a un archivo: Alloy la lleva a
+# Loki y se ve en el dashboard Logs (fila Facturación), con 14 días de retención.
+#   -t facturacion-<job>    identificador; Alloy lo pone en service="facturacion", unit=...
+#   --stderr-priority=err   los errores (psql, radclient) quedan con nivel error
+#   || ... FALLÓ            si el script termina con error, una línea que lo dice
+# En la VM:  journalctl -t facturacion-suspender -t facturacion-rehabilitar
 REPO=/home/sysadmin/isp-radius
-0 3 * * *    $REPO/facturacion/suspender.sh   >> $REPO/facturacion/jobs.log 2>&1
-*/5 * * * *  $REPO/facturacion/rehabilitar.sh >> $REPO/facturacion/jobs.log 2>&1
+0 3 * * *    systemd-cat -t facturacion-suspender   --stderr-priority=err $REPO/facturacion/suspender.sh   || echo "FALLÓ (código $?)" | systemd-cat -t facturacion-suspender -p err
+*/5 * * * *  systemd-cat -t facturacion-rehabilitar --stderr-priority=err $REPO/facturacion/rehabilitar.sh || echo "FALLÓ (código $?)" | systemd-cat -t facturacion-rehabilitar -p err

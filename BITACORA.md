@@ -419,7 +419,7 @@ Probado deteniendo postgres 3 min: **FreeRADIUS no deja de responder, rechaza a 
 ### Pendientes
 
 - [ ] Mínimo de tráfico en las alertas de tasa de quema (o silencios en mantenimiento).
-- [ ] Logs de los jobs de facturación al journal (`systemd-cat -t facturacion`) para alertar si el job no corre; hoy van a `facturacion/jobs.log`.
+- [x] Logs de los jobs de facturación al journal (`systemd-cat`), en Loki y en el dashboard Logs (26/11). Falta: alertar si el job no corre.
 - [ ] `R1Reiniciado`: queda para después (falta ver qué loguea R1 al arrancar, antes de que haya red).
 
 ## 2026-11-24 — Mapa de dependencias
@@ -466,3 +466,13 @@ Probado en una máquina sin VirtualBox, con un lab paralelo: PostgreSQL y FreeRA
 
 - [ ] Crear y configurar R3 en el lab real (`scripts/crear-chr.sh r3 && scripts/configurar-chr.sh r3`), pegar `mikrotik/abonado-trafico.rsc` en el R2 existente y ver el tráfico de las dos en Grafana.
 - [ ] Contar en la defensa cómo usamos la IA: qué le preguntamos, qué respondió mal y cómo nos dimos cuenta (lo pide el enunciado).
+
+## 2026-11-26 — Logs de los jobs de facturación
+
+- **Antes:** `suspender` y `rehabilitar` escribían en `facturacion/jobs.log`, un archivo en la VM db que nadie mira (el riesgo del "job que falla en silencio").
+- **Ahora:** `crontab.txt` los corre con `systemd-cat -t facturacion-<job> --stderr-priority=err`. Los scripts no cambiaron: lo que imprimen va al journal (14 días) y Alloy lo manda a Loki.
+  - Si el script termina con error, `|| echo "FALLÓ (código $?)"` agrega una línea con nivel `error` (`systemd-cat` devuelve el código del script).
+  - Alloy (`alloy/journal.alloy`): el identificador `facturacion-*` pasa a `unit` y `service="facturacion"` (si no, quedaban como `cron.service` dentro del servicio `db`). Además, todas las líneas del journal llevan `level` (de la prioridad); Alloy lo escribe `error`, no `err`.
+  - Dashboard **Logs**: fila *Facturación* con las corridas por job (líneas `Inicio`) y las fallas, más el log filtrable por usuario.
+- **Probado** corriendo `rehabilitar.sh` a mano con la misma línea del crontab: llegaron `Inicio` (info), el error de psql y `FALLÓ (código 2)` (error).
+- **Hallazgo:** la base de nuestro lab (VirtualBox) **no tiene el esquema `facturacion`**: se inicializó antes de `db/init/04` a `07`, y esos scripts solo corren con el volumen vacío. Tampoco hay crontab instalado. En la VM de Joaquín (UTM) sí está.

@@ -12,9 +12,15 @@
   },
   "refresh": "30s",
   "editable": true,
-  "description": "Logs de las VMs (journal vía Alloy) y de R1 (syslog) en Loki. Retención 14 días.",
+  "description": "Logs de las VMs (journal vía Alloy) de R1 (syslog) y de los jobs de facturación en Loki. Retención 14 días.",
   "links": [
-    { "title": "Mapa", "type": "link", "url": "/d/mapa", "icon": "apps", "keepTime": true },
+    {
+      "title": "Mapa",
+      "type": "link",
+      "url": "/d/mapa",
+      "icon": "apps",
+      "keepTime": true
+    },
     {
       "title": "Servicio RADIUS (SLOs)",
       "type": "link",
@@ -457,13 +463,138 @@
       }
     },
     {
+      "id": 14,
+      "type": "row",
+      "title": "Facturación — jobs en cron (VM db)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Corridas y fallas por job",
+      "description": "Corridas = líneas \"Inicio\". rehabilitar corre cada 5 min y suspender a las 03:00: si las barras se cortan, el job no está corriendo (cron, VM db o Alloy). Fallas = líneas con nivel err (FALLÓ, errores de psql o radclient).",
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "sum by (unit) (count_over_time({service=\"facturacion\"} |= \"Inicio\" [$__auto]))",
+          "legendFormat": "{{unit}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "sum by (unit) (count_over_time({service=\"facturacion\", level=~\"error|critical|alert|emergency\"} [$__auto]))",
+          "legendFormat": "{{unit}} · fallas"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*fallas"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "type": "logs",
+      "title": "Jobs de facturación (suspender, rehabilitar)",
+      "description": "Quién fue suspendido o rehabilitado y si el Disconnect llegó (\"ATENCIÓN: no se pudo cortar\"). Filtra por el usuario de arriba.",
+      "gridPos": {
+        "x": 8,
+        "y": 35,
+        "w": 16,
+        "h": 8
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "{service=\"facturacion\"} |= \"$usuario\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      }
+    },
+    {
       "id": 12,
       "type": "row",
       "title": "Sistema de las VMs — lo que no está en los contenedores",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 43,
         "w": 24,
         "h": 1
       },
@@ -476,7 +607,7 @@
       "description": "OOM killer (out of memory: Killed process), disco, red, dockerd, accesos por SSH.",
       "gridPos": {
         "x": 0,
-        "y": 35,
+        "y": 44,
         "w": 24,
         "h": 7
       },
