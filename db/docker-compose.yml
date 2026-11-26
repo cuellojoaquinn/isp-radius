@@ -47,6 +47,9 @@ services:
     command:
       - --path.rootfs=/host
       - --web.listen-address=10.10.10.20:9100   # solo en gestion
+      # /vagrant es la carpeta compartida con la computadora (no el disco de la VM) y Vagrant
+      # la monta dos veces: sin esto node-exporter da error en cada consulta (bitácora 26/11).
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|run/credentials/.+|sys|vagrant|var/lib/docker/.+|var/lib/containers/storage/.+)($$|/)
     volumes:
       - /:/host:ro,rslave
 
