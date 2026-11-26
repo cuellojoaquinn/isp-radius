@@ -1,73 +1,94 @@
 {
   "uid": "logs",
   "title": "Logs",
+  "description": "Exploración de logs: las VMs (journal vía Alloy), R1 (syslog) y los jobs de facturación, en Loki, 14 días. El texto de arriba filtra todos los paneles. Lo de un abonado puntual está en Abonados.",
   "tags": [
     "isp-radius",
     "logs"
   ],
   "schemaVersion": 39,
+  "editable": true,
+  "graphTooltip": 1,
   "time": {
     "from": "now-1h",
     "to": "now"
   },
   "refresh": "30s",
-  "editable": true,
-  "description": "Logs de las VMs (journal vía Alloy) de R1 (syslog) y de los jobs de facturación en Loki. Retención 14 días.",
+  "timezone": "browser",
   "links": [
     {
       "title": "Mapa",
       "type": "link",
       "url": "/d/mapa",
       "icon": "apps",
-      "keepTime": true
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     },
     {
-      "title": "Servicio RADIUS (SLOs)",
+      "title": "Servicio",
       "type": "link",
       "url": "/d/slos",
       "icon": "dashboard",
-      "keepTime": true
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
+    },
+    {
+      "title": "Abonados",
+      "type": "link",
+      "url": "/d/abonados",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     },
     {
       "title": "Componentes",
       "type": "link",
       "url": "/d/componentes",
       "icon": "dashboard",
-      "keepTime": true
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     },
     {
       "title": "PostgreSQL",
       "type": "link",
       "url": "/d/postgresql",
       "icon": "dashboard",
-      "keepTime": true
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     },
     {
       "title": "Infraestructura",
       "type": "link",
       "url": "/d/infraestructura",
       "icon": "dashboard",
-      "keepTime": true
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     }
   ],
   "templating": {
     "list": [
       {
-        "name": "instance",
-        "label": "VM",
+        "name": "maquina",
+        "label": "Máquina",
         "type": "custom",
         "multi": true,
         "includeAll": true,
-        "query": "freeradius,db,grafana,r1",
+        "query": "VM freeradius : freeradius,VM db : db,VM grafana : grafana,R1 : r1",
+        "allValue": "freeradius|db|grafana|r1",
         "current": {
           "text": "All",
           "value": "$__all"
-        },
-        "allValue": "freeradius|db|grafana|r1"
+        }
       },
       {
-        "name": "usuario",
-        "label": "Usuario / MAC / texto",
+        "name": "texto",
+        "label": "Buscar texto",
         "type": "textbox",
         "query": "",
         "current": {
@@ -77,11 +98,14 @@
       }
     ]
   },
+  "annotations": {
+    "list": []
+  },
   "panels": [
     {
       "id": 1,
       "type": "row",
-      "title": "Panorama — cuánto loguea cada parte y cuántos errores",
+      "title": "Panorama: cuánto escribe cada máquina",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -92,212 +116,287 @@
       "panels": []
     },
     {
-      "id": 2,
       "type": "timeseries",
-      "title": "Líneas por servicio",
-      "description": "Un salto de volumen suele ser un problema (reintentos, errores en bucle) o alguien que dejó un modo debug.",
+      "title": "Líneas de log por máquina",
+      "description": "Un salto de volumen suele ser un problema (reintentos, errores en bucle) o alguien que dejó un modo de depuración prendido.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (instance) (count_over_time({instance=~\"$maquina\"} [$__auto]))",
+          "legendFormat": "{{instance}}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": null
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "freeradius"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "VM freeradius"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "db"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "VM db"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "grafana"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "VM grafana (monitoreo)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "r1"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "R1"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 2,
       "gridPos": {
         "x": 0,
         "y": 1,
         "w": 12,
-        "h": 8
-      },
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Líneas que mencionan un error, por máquina",
+      "description": "Búsqueda de las palabras error, fatal, failed... Es orientativa: algunos mensajes normales las usan.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "targets": [
         {
-          "refId": "A",
           "datasource": {
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (service) (count_over_time({instance=~\"$instance\"} [$__auto]))",
-          "legendFormat": "{{service}}",
-          "queryType": "range"
+          "expr": "sum by (instance) (count_over_time({instance=~\"$maquina\"} |~ \"(?i)\\\\b(error|fatal|panic|critical|failed)\\\\b\" [$__auto]))",
+          "legendFormat": "{{instance}}",
+          "queryType": "range",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "min": 0,
           "custom": {
             "drawStyle": "bars",
-            "fillOpacity": 60,
+            "lineWidth": 2,
+            "fillOpacity": 70,
             "stacking": {
-              "mode": "normal"
-            }
-          }
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": 1
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 0
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "freeradius"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "VM freeradius"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "db"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "VM db"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "grafana"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "VM grafana (monitoreo)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "r1"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "R1"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
-      }
-    },
-    {
+      },
       "id": 3,
-      "type": "timeseries",
-      "title": "Líneas con error por instancia",
-      "description": "Búsqueda de texto (error, fatal, failed...): es orientativa, no un SLI.",
       "gridPos": {
         "x": 12,
         "y": 1,
         "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "sum by (instance) (count_over_time({instance=~\"$instance\"} |~ \"(?i)\\\\b(error|fatal|panic|critical|failed)\\\\b\" [$__auto]))",
-          "legendFormat": "{{instance}}",
-          "queryType": "range"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "min": 0,
-          "custom": {
-            "drawStyle": "bars",
-            "fillOpacity": 60,
-            "stacking": {
-              "mode": "normal"
-            }
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
+        "h": 7
       }
     },
     {
       "id": 4,
       "type": "row",
-      "title": "Autenticación — qué le pasó a cada login (FreeRADIUS)",
+      "title": "FreeRADIUS y la base",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 8,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "id": 5,
-      "type": "timeseries",
-      "title": "Logins por resultado (del log)",
-      "description": "Por minuto. Métricas que calcula el ruler de Loki (grafana/loki/rules/). Incluye los logins de test.sh (cliente dockernet).",
-      "gridPos": {
-        "x": 0,
-        "y": 10,
-        "w": 8,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "radius:login_ok:rate5m * 60",
-          "legendFormat": "Login OK"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "radius:login_incorrecto:rate5m * 60",
-          "legendFormat": "Login incorrect"
-        },
-        {
-          "refId": "C",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "radius:sql_errores:rate5m * 60",
-          "legendFormat": "errores rlm_sql"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "min": 0,
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "stacking": {
-              "mode": "none"
-            }
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 6,
       "type": "logs",
-      "title": "Logins (filtrar por usuario arriba)",
-      "description": "Login OK / Login incorrect con el motivo, el cliente (r1, dockernet) y la MAC (cli). Sin contraseñas.",
-      "gridPos": {
-        "x": 8,
-        "y": 10,
-        "w": 16,
-        "h": 8
-      },
+      "title": "FreeRADIUS: errores y avisos",
+      "description": "rlm_sql = FreeRADIUS no llega a PostgreSQL (alerta FreeradiusSinBase). Los logins de cada abonado, con el motivo, están en el dashboard Abonados.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "targets": [
         {
-          "refId": "A",
           "datasource": {
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{container=\"freeradius\"} |= \"Auth:\" |= \"$usuario\"",
-          "queryType": "range"
+          "expr": "{container=\"freeradius\"} |~ \"Error|Warning\" |= \"$texto\"",
+          "queryType": "range",
+          "refId": "A"
         }
       ],
       "options": {
@@ -306,225 +405,260 @@
         "sortOrder": "Descending",
         "enableLogDetails": true,
         "dedupStrategy": "none",
-        "prettifyLogMessage": false
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showCommonLabels": false
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "logs",
+      "title": "PostgreSQL",
+      "description": "Arranques, conexiones rechazadas (pg_hba), errores de consultas.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=\"postgres\"} |= \"$texto\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showCommonLabels": false
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 8
       }
     },
     {
       "id": 7,
-      "type": "logs",
-      "title": "FreeRADIUS · errores (base, módulos)",
-      "description": "rlm_sql = FreeRADIUS no llega a PostgreSQL (alerta FreeradiusSinBase).",
-      "gridPos": {
-        "x": 0,
-        "y": 18,
-        "w": 12,
-        "h": 7
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "{container=\"freeradius\"} |~ \"Error|Warning\"",
-          "queryType": "range"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending",
-        "enableLogDetails": true,
-        "dedupStrategy": "none",
-        "prettifyLogMessage": false
-      }
-    },
-    {
-      "id": 8,
-      "type": "logs",
-      "title": "PostgreSQL",
-      "description": "Arranques, conexiones rechazadas por pg_hba, errores de consultas.",
-      "gridPos": {
-        "x": 12,
-        "y": 18,
-        "w": 12,
-        "h": 7
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "{container=\"postgres\"} |~ \"$usuario\"",
-          "queryType": "range"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending",
-        "enableLogDetails": true,
-        "dedupStrategy": "none",
-        "prettifyLogMessage": false
-      }
-    },
-    {
-      "id": 9,
       "type": "row",
-      "title": "R1 — eventos del NAS (syslog)",
+      "title": "R1 (syslog)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 17,
         "w": 24,
         "h": 1
       },
       "panels": []
+    },
+    {
+      "type": "logs",
+      "title": "R1: conexiones y cortes PPPoE (todos los abonados)",
+      "description": "logged in / logged out (con bytes y MAC), authenticated, terminating.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{instance=\"r1\", topic=\"ppp\"} |= \"$texto\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showCommonLabels": false
+      },
+      "id": 8,
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "logs",
+      "title": "R1: RADIUS, configuración y sistema",
+      "description": "Pedidos RADIUS sin respuesta, cambios de configuración (quién y qué), ingresos de administradores, reinicios.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{instance=\"r1\", topic=~\"radius|sistema\"} |= \"$texto\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showCommonLabels": false
+      },
+      "id": 9,
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 12,
+        "h": 8
+      }
     },
     {
       "id": 10,
-      "type": "logs",
-      "title": "R1 · PPPoE (conexiones y cortes)",
-      "description": "logged in / logged out (con bytes y MAC), authenticated, terminating. Lado del NAS del mismo login que ve FreeRADIUS.",
-      "gridPos": {
-        "x": 0,
-        "y": 26,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "{instance=\"r1\", topic=\"ppp\"} |= \"$usuario\"",
-          "queryType": "range"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending",
-        "enableLogDetails": true,
-        "dedupStrategy": "none",
-        "prettifyLogMessage": false
-      }
-    },
-    {
-      "id": 11,
-      "type": "logs",
-      "title": "R1 · RADIUS y sistema",
-      "description": "Timeouts de RADIUS, cambios de configuración (quién y qué), logins de administradores.",
-      "gridPos": {
-        "x": 12,
-        "y": 26,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "{instance=\"r1\", topic=~\"radius|sistema\"}",
-          "queryType": "range"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending",
-        "enableLogDetails": true,
-        "dedupStrategy": "none",
-        "prettifyLogMessage": false
-      }
-    },
-    {
-      "id": 14,
       "type": "row",
-      "title": "Facturación — jobs en cron (VM db)",
+      "title": "Facturación (jobs en cron de la VM db)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 26,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "id": 15,
       "type": "timeseries",
       "title": "Corridas y fallas por job",
-      "description": "Corridas = líneas \"Inicio\". rehabilitar corre cada 5 min y suspender a las 03:00: si las barras se cortan, el job no está corriendo (cron, VM db o Alloy). Fallas = líneas con nivel err (FALLÓ, errores de psql o radclient).",
-      "gridPos": {
-        "x": 0,
-        "y": 35,
-        "w": 8,
-        "h": 8
-      },
+      "description": "rehabilitar corre cada 5 min y suspender a las 03:00: si las barras se cortan, el job no está corriendo. Fallas = líneas de error (FALLÓ, psql, radclient).",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "targets": [
         {
-          "refId": "A",
           "datasource": {
             "type": "loki",
             "uid": "loki"
           },
-          "queryType": "range",
           "expr": "sum by (unit) (count_over_time({service=\"facturacion\"} |= \"Inicio\" [$__auto]))",
-          "legendFormat": "{{unit}}"
+          "legendFormat": "{{unit}}",
+          "queryType": "range",
+          "refId": "A"
         },
         {
-          "refId": "B",
           "datasource": {
             "type": "loki",
             "uid": "loki"
           },
-          "queryType": "range",
           "expr": "sum by (unit) (count_over_time({service=\"facturacion\", level=~\"error|critical|alert|emergency\"} [$__auto]))",
-          "legendFormat": "{{unit}} · fallas"
+          "legendFormat": "{{unit}} · fallas",
+          "queryType": "range",
+          "refId": "B"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "min": 0,
           "custom": {
             "drawStyle": "bars",
-            "fillOpacity": 60,
+            "lineWidth": 2,
+            "fillOpacity": 70,
             "stacking": {
-              "mode": "none"
-            }
-          }
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": 1
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 0
         },
         "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "facturacion-rehabilitar"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "rehabilitar"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "facturacion-suspender"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "suspender"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
           {
             "matcher": {
               "id": "byRegexp",
@@ -545,37 +679,39 @@
       "options": {
         "legend": {
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
+      },
+      "id": 11,
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 8,
+        "h": 8
       }
     },
     {
-      "id": 16,
       "type": "logs",
-      "title": "Jobs de facturación (suspender, rehabilitar)",
-      "description": "Quién fue suspendido o rehabilitado y si el Disconnect llegó (\"ATENCIÓN: no se pudo cortar\"). Filtra por el usuario de arriba.",
-      "gridPos": {
-        "x": 8,
-        "y": 35,
-        "w": 16,
-        "h": 8
-      },
+      "title": "Jobs de facturación",
+      "description": "Quién fue suspendido o rehabilitado y si la orden de corte llegó (\"ATENCIÓN: no se pudo cortar\").",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "targets": [
         {
-          "refId": "A",
           "datasource": {
             "type": "loki",
             "uid": "loki"
           },
+          "expr": "{service=\"facturacion\"} |= \"$texto\"",
           "queryType": "range",
-          "expr": "{service=\"facturacion\"} |= \"$usuario\""
+          "refId": "A"
         }
       ],
       "options": {
@@ -584,46 +720,48 @@
         "sortOrder": "Descending",
         "enableLogDetails": true,
         "dedupStrategy": "none",
-        "prettifyLogMessage": false
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showCommonLabels": false
+      },
+      "id": 12,
+      "gridPos": {
+        "x": 8,
+        "y": 27,
+        "w": 16,
+        "h": 8
       }
     },
     {
-      "id": 12,
+      "id": 13,
       "type": "row",
-      "title": "Sistema de las VMs — lo que no está en los contenedores",
+      "title": "Sistema de las VMs: lo que no está en los contenedores",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 43,
+        "y": 35,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "id": 13,
       "type": "logs",
       "title": "Kernel y servicios del sistema",
-      "description": "OOM killer (out of memory: Killed process), disco, red, dockerd, accesos por SSH.",
-      "gridPos": {
-        "x": 0,
-        "y": 44,
-        "w": 24,
-        "h": 7
-      },
+      "description": "Falta de memoria (out of memory: Killed process), disco, red, Docker, accesos por SSH.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "targets": [
         {
-          "refId": "A",
           "datasource": {
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{instance=~\"$instance\", unit=~\"kernel|docker.service|containerd.service|ssh.service\"}",
-          "queryType": "range"
+          "expr": "{instance=~\"$maquina\", unit=~\"kernel|docker.service|containerd.service|ssh.service\"} |= \"$texto\"",
+          "queryType": "range",
+          "refId": "A"
         }
       ],
       "options": {
@@ -632,7 +770,16 @@
         "sortOrder": "Descending",
         "enableLogDetails": true,
         "dedupStrategy": "none",
-        "prettifyLogMessage": false
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showCommonLabels": false
+      },
+      "id": 14,
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 8
       }
     }
   ]
