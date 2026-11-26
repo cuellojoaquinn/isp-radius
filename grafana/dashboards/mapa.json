@@ -132,6 +132,16 @@
               "Value #edges": true
             }
           }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "id"
+              }
+            ]
+          }
         }
       ],
       "fieldConfig": {
@@ -207,7 +217,8 @@
           "mainStatUnit": "",
           "secondaryStatUnit": ""
         },
-        "edges": {}
+        "edges": {},
+        "layoutAlgorithm": "layered"
       }
     },
     {
