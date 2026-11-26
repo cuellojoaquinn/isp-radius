@@ -122,14 +122,17 @@ La red `gestion` es interna de VirtualBox: el Vagrantfile redirige las interface
 | Prometheus (targets, reglas, alertas) | http://localhost:9090 |
 | Alertmanager (alertas activas, silencios) | http://localhost:9093 |
 
-**Dashboards** (carpeta *ISP RADIUS*, provisionados desde `grafana/dashboards/`):
+**Dashboards** (carpeta *ISP RADIUS*, provisionados desde `grafana/dashboards/`). Uno por pregunta:
 
-- **Servicio RADIUS (SLOs)** — síntomas: los 4 SLIs, presupuesto de error, tasa de quema, alertas activas.
-- **Componentes** — causas: cuatro señales doradas de R1 (cliente RADIUS y servidor PPPoE) y FreeRADIUS, incluido el cruce *NAS vs servidor*.
-- **PostgreSQL** — cuatro señales doradas de la base, estado del accounting y últimas sesiones (SQL directo).
-- **Infraestructura** — CPU, memoria, disco y red de las VMs.
-- **Mapa** — dependencias del servicio (abonados → R1 → FreeRADIUS → PostgreSQL, y facturación) con la salud de cada conexión: verde sano, amarillo degradado, rojo falla, gris = no sé (sin tráfico o exporter caído) o no lo medimos. Click en un nodo: sus logs y dashboards. El modelo vive en `grafana/prometheus/rules/topologia.yml` (métricas `topologia_nodo` y `topologia_conexion`, con tests) y es solo vista: no alerta.
-- **Logs** — volumen y errores por servicio, logins de FreeRADIUS (filtrables por usuario o MAC), PostgreSQL, eventos de R1 (PPPoE, RADIUS, cambios de config) y kernel/sistema de las VMs.
+- **Mapa** — ¿dónde está el problema? Dependencias del servicio (abonados → R1 → FreeRADIUS → PostgreSQL, y facturación) con la salud de cada conexión: verde sano, amarillo degradado, rojo falla, gris = no sé o no lo medimos. Click en un nodo: sus logs y dashboards. El modelo vive en `grafana/prometheus/rules/topologia.yml` (con tests) y es solo vista: no alerta.
+- **Servicio** — ¿anda bien para los abonados? Los 4 SLIs contra sus objetivos (cada porcentaje con su muestra), alertas activas, presupuesto de error en pedidos (usados / permitidos), velocidad de gasto y cómo terminaron las sesiones.
+- **Abonados** — ¿qué le pasa a *este* abonado? (se elige arriba). Si está conectado, plan o suspensión, consumo, velocidad, sesiones con la causa de corte, intentos de login con el motivo y sus logs en R1 y facturación. Vista de soporte.
+- **Componentes** — ¿qué pieza falla? R1 como cliente RADIUS, FreeRADIUS, R1 como servidor PPPoE y los jobs de facturación.
+- **PostgreSQL** — ¿la base aguanta? Conexiones, consultas lentas, bloqueos, errores y espacio.
+- **Infraestructura** — ¿las máquinas aguantan? Las 3 VMs y R1: fuentes de datos, procesador, memoria, disco, reinicios y red.
+- **Logs** — exploración: volumen y errores por máquina, FreeRADIUS, PostgreSQL, R1, facturación y sistema, con un buscador de texto.
+
+Siguen criterios comunes (bitácora 26/11): títulos con la pregunta, estados en palabras, todo por minuto, cantidades enteras, porcentajes con su muestra y nombres del lab en lugar de los del sistema.
 
 Todos tienen links entre sí que conservan el rango de tiempo: de un pico en un gráfico se salta a los logs de ese momento.
 

@@ -489,3 +489,39 @@ Probado en una máquina sin VirtualBox, con un lab paralelo: PostgreSQL y FreeRA
 - **Tests:** 7 casos nuevos en `topologia_test.yml`, más los casos 1 y 6 actualizados.
 - **Bug de Loki 3.7.9:** `|~ "psql:.*(error|FATAL)"` no encuentra líneas que sí coinciden (prefijo + alternativa). Se reemplazó por `|= "psql:" != "NOTICE"`.
 - **En nuestro lab** el nodo y la conexión SQL quedan en **rojo**, y es correcto: falta el esquema `facturacion` (role "facturacion" does not exist).
+
+## 2026-11-26 — Auditoría de los dashboards
+
+**Pregunta guía:** una persona que no armó esto, ¿entiende qué está viendo sin leer la descripción?
+
+**Criterios** (aplicados a los siete dashboards):
+1. El título dice qué es y en qué unidad, en el idioma del servicio ("Pedidos de R1 respondidos", no "SLI 1 · requests").
+2. Los estados van en palabras con color (Responde / No responde, Sí / No, Ninguna), nunca 1/0.
+3. Una unidad por panel y siempre la misma: eventos por minuto; los eventos raros, como cantidad en el rango. Nunca "por intervalo", que cambia con el zoom.
+4. Cantidades enteras: no existen 1,7 cortes (`increase()` extrapola, se redondea).
+5. Cada porcentaje va con su muestra ("100 % · 10 pedidos"). Con muy poca muestra no se calcula ("Pocas para medir").
+6. Los colores tienen significado: verde bien, rojo mal. Un corte anormal no puede ser verde.
+7. Nombres del lab, no del sistema: gestión / LAN1 / hacia abonados, no ether1/2/3. "Facturación", no `facturacion`.
+8. Si todo está en cero, se dice ("Sin alertas activas", "Ninguno") en lugar de dibujar líneas planas.
+9. Ejes que dejen ver el cambio: SLI de 98 a 100 %; días hasta llenar el disco en lugar de una tendencia plana.
+10. Cada dato en un solo lugar; los demás dashboards tienen link.
+11. El número cuenta solo lo que dice el título. Logins sin las pruebas de test.sh; avisar cuando las transacciones son del propio monitoreo.
+12. La descripción dice qué hacer, no la fórmula.
+
+**Decisiones:**
+- **Un dashboard por pregunta:** Mapa (¿dónde?), Servicio (¿anda bien?), **Abonados** (nuevo: ¿qué le pasa a este abonado?), Componentes (¿qué pieza?), PostgreSQL (¿la base?), Infraestructura (¿las máquinas?), Logs (exploración).
+  - R1 como equipo (CPU, memoria, disco, uptime, interfaces) pasa a Infraestructura.
+  - Los SLI 3 y 4 y las causas de corte salen de PostgreSQL hacia Servicio.
+  - Las sesiones y los logins por abonado van a Abonados.
+- **Presupuesto de error (a + c):**
+  - (a) Se muestra en pedidos ("Agotado: 60 usados, 0,4 permitidos, de 386") con la explicación del lab: el SLO se diseñó para unos 20 000 pedidos por mes y el lab tiene unos 400, así que cada arranque del lab lo agota.
+  - (c) Las alertas de tasa de quema exigen además **al menos 3 pedidos fallidos** en la ventana larga. Antes, un solo pedido perdido (un contenedor que se reinicia) disparaba el aviso urgente. Hay test nuevo.
+- **"Locales" → "Sesiones que no pasan por RADIUS":** RouterOS busca primero en `/ppp secret` y después en RADIUS. Que todo pase por RADIUS es configuración, no arquitectura. Una sesión local no queda en el accounting y no se puede suspender, así que es un control que tiene que dar 0, no una categoría de abonados.
+
+**Hallazgos de la auditoría que no eran de presentación:**
+- **node-exporter daba error en cada consulta** (cada 15 s, en las tres VMs): Vagrant monta `/vagrant` dos veces y se duplicaban las métricas. Se excluyó `/vagrant`, que es el disco de la computadora y no el de la VM.
+- **"recibidos por FreeRADIUS" y los logins incluían las pruebas de test.sh.** Ahora el ruler cuenta solo `from client r1` (abonados reales) y la leyenda lo aclara donde no se puede separar.
+- **La etiqueta `level` de los contenedores no es confiable.** Docker manda stdout como info y stderr como error, y PostgreSQL escribe todo a stderr: en Logs, un "checkpoint complete" aparece como error. En los jobs de facturación sí es confiable, porque usan `systemd-cat` con prioridad explícita.
+- **Seguridad (para Joaquín):** `radpostauth.pass` se guarda en todas las filas (8 en texto claro por PAP, el resto CHAP en hexa) y el usuario `grafana` tiene SELECT sobre `radpostauth`. Ningún dashboard lee esa columna. Propuesta: no guardarla (query de post-auth sin `pass`) o dar SELECT por columna.
+- **Node Graph ignora la configuración de campos del panel:** los dos decimales de los círculos y los nombres de la leyenda no se pueden cambiar. Las tablas de abajo del mapa tienen el formato correcto.
+
