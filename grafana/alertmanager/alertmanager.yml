@@ -1,9 +1,15 @@
 # Alertmanager — qué hacer con las alertas que disparan Prometheus (métricas) y
 # Loki (logs, grafana/loki/rules/).
 #
-# Por ahora sin canal de aviso: las alertas se ven en http://localhost:9093 y en
-# Grafana. Para sumar un canal (Telegram) o el agente de diagnóstico (webhook) se
-# agrega un receiver y se lo asigna en las rutas de abajo; las reglas no cambian.
+# Avisos (bitácora 26/11):
+#   page   -> Telegram + agente de diagnóstico (diagnostico/: investiga y manda su
+#             diagnóstico al mismo chat)
+#   ticket -> Telegram
+# Telegram se activa solo si existen grafana/alertmanager/secretos/telegram_token y
+# telegram_chat_id (scripts/configurar-avisos.sh): arrancar.sh descomenta las líneas
+# "#TG " al iniciar el contenedor. Sin esos archivos, las alertas se ven en
+# http://localhost:9093 y en Grafana, y el agente deja su diagnóstico en el log.
+# Después de cambiar este archivo: docker restart alertmanager (no alcanza /-/reload).
 
 route:
   receiver: ninguno
@@ -14,11 +20,11 @@ route:
   routes:
     # page: alguien tiene que actuar ya (síntoma de usuario o monitoreo ciego)
     - matchers: [severity="page"]
-      receiver: ninguno            # a futuro: telegram + agente-diagnostico (webhook)
+      receiver: page
       repeat_interval: 1h
     # ticket: hay que mirarlo en horario laboral (presupuesto quemándose lento, saturación)
     - matchers: [severity="ticket"]
-      receiver: ninguno            # a futuro: telegram (sin agente)
+      receiver: ticket
       repeat_interval: 12h
 
 inhibit_rules:
@@ -44,5 +50,33 @@ inhibit_rules:
     target_matchers: [alertname=~"Autenticacion.*"]
     equal: [service]
 
+  # VM db caída: las alertas de facturación (no corre, falla) son consecuencia.
+  - source_matchers: [alertname="TargetCaido", job="node"]
+    target_matchers: [service="facturacion"]
+    equal: [instance]
+
+templates:
+  - /etc/alertmanager/telegram.tmpl
+
 receivers:
   - name: ninguno
+
+  - name: page
+    webhook_configs:
+      - url: http://diagnostico:8080/alerta     # agente de diagnóstico (diagnostico/)
+        send_resolved: false
+        timeout: 10s
+#TG     telegram_configs:
+#TG       - bot_token_file: /etc/alertmanager/secretos/telegram_token
+#TG         chat_id: __TELEGRAM_CHAT_ID__
+#TG         parse_mode: HTML
+#TG         message: '{{ template "telegram.mensaje" . }}'
+#TG         send_resolved: true
+
+  - name: ticket
+#TG     telegram_configs:
+#TG       - bot_token_file: /etc/alertmanager/secretos/telegram_token
+#TG         chat_id: __TELEGRAM_CHAT_ID__
+#TG         parse_mode: HTML
+#TG         message: '{{ template "telegram.mensaje" . }}'
+#TG         send_resolved: true

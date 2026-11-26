@@ -1,4 +1,5 @@
 # Secretos
+grafana/alertmanager/secretos/
 .env
 *.env
 !.env.example

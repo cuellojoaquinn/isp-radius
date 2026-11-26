@@ -30,14 +30,30 @@ services:
     image: prom/alertmanager:v0.28.1
     container_name: alertmanager
     restart: unless-stopped
-    command:
-      - --config.file=/etc/alertmanager/alertmanager.yml
-      - --storage.path=/alertmanager
+    # arrancar.sh arma la config efectiva (con Telegram si están los secretos) y la inicia
+    entrypoint: ["/bin/sh", "/etc/alertmanager/arrancar.sh"]
     ports:
       - "9093:9093"
     volumes:
       - ./alertmanager:/etc/alertmanager:ro
       - alertmanager-data:/alertmanager
+
+  # Agente de diagnóstico con IA (diagnostico/): Alertmanager le manda las alertas
+  # urgentes, investiga con Prometheus, Loki y el mapa (solo lectura) y manda su
+  # diagnóstico a Telegram. Sin ANTHROPIC_API_KEY (grafana/.env) arranca igual y avisa.
+  # Demo por consola: docker exec -it diagnostico python agente.py "pregunta"
+  diagnostico:
+    build: ../diagnostico
+    image: isp-radius/diagnostico
+    container_name: diagnostico
+    restart: unless-stopped
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      PROMETHEUS_URL: http://prometheus:9090
+      LOKI_URL: http://loki:3100
+      ALERTMANAGER_URL: http://alertmanager:9093
+    volumes:
+      - ./alertmanager/secretos:/secretos:ro
 
   grafana:
     image: grafana/grafana:12.1.0

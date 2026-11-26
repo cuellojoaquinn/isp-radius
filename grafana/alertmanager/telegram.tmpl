@@ -1,0 +1,12 @@
+{{/* Mensaje de Telegram (HTML). Todo el texto que viene de las reglas pasa por html. */}}
+{{ define "telegram.mensaje" -}}
+{{ if eq .Status "firing" }}{{ if eq .CommonLabels.severity "page" }}🔴 URGENTE{{ else }}🟠 Ticket{{ end }}{{ else }}✅ Resuelta{{ end }}: <b>{{ .CommonLabels.alertname | html }}</b>
+{{ range .Alerts }}
+• {{ .Annotations.summary | html }}{{ if .Labels.instance }} ({{ .Labels.instance | html }}){{ end }}
+{{- end }}
+{{ if eq .Status "firing" }}
+<b>Qué hacer:</b> {{ (index .Alerts 0).Annotations.runbook | html }}
+{{ if eq .CommonLabels.severity "page" }}
+El agente de diagnóstico está investigando: su respuesta llega en un minuto.{{ end }}{{ end }}
+Grafana: http://localhost:3000/d/mapa
+{{- end }}
