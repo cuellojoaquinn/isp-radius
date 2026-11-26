@@ -1,7 +1,7 @@
 {
   "uid": "abonados",
   "title": "Abonados",
-  "description": "¿Qué le pasa a este abonado? Elegilo arriba: si está conectado, su plan o suspensión, consumo, tráfico, sesiones, intentos de login con el motivo y lo que vieron R1 y facturación. Vista de soporte.",
+  "description": "Puerta de entrada para soporte: buscar un abonado, ver quién tiene problemas ahora y el resumen. No hay una lista con todos: escala a miles de abonados. Click en un abonado abre su ficha.",
   "tags": [
     "isp-radius",
     "soporte"
@@ -10,10 +10,10 @@
   "editable": true,
   "graphTooltip": 1,
   "time": {
-    "from": "now-3h",
+    "from": "now-24h",
     "to": "now"
   },
-  "refresh": "10s",
+  "refresh": "30s",
   "timezone": "browser",
   "links": [
     {
@@ -74,20 +74,14 @@
   "templating": {
     "list": [
       {
-        "name": "abonado",
-        "label": "Abonado",
-        "type": "query",
-        "datasource": {
-          "type": "grafana-postgresql-datasource",
-          "uid": "postgres-radius"
-        },
-        "query": "SELECT DISTINCT username FROM radusergroup ORDER BY 1",
-        "definition": "SELECT DISTINCT username FROM radusergroup ORDER BY 1",
-        "refresh": 2,
-        "includeAll": false,
-        "multi": false,
-        "sort": 1,
-        "current": {}
+        "name": "buscar",
+        "label": "Buscar (usuario, IP, MAC o cliente)",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        }
       }
     ]
   },
@@ -98,7 +92,7 @@
     {
       "id": 1,
       "type": "row",
-      "title": "Ahora",
+      "title": "Buscar un abonado",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -109,710 +103,9 @@
       "panels": []
     },
     {
-      "type": "stat",
-      "title": "¿Está conectado?",
-      "description": "Según el accounting: tiene una sesión abierta (Start sin Stop).",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres-radius"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres-radius"
-          },
-          "rawSql": "SELECT CASE WHEN EXISTS (SELECT 1 FROM radacct WHERE username = '$abonado' AND acctstoptime IS NULL) THEN 1 ELSE 0 END AS conectado",
-          "format": "table",
-          "rawQuery": true,
-          "editorMode": "code",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "1": {
-                  "text": "Conectado",
-                  "color": "green",
-                  "index": 0
-                },
-                "0": {
-                  "text": "Desconectado",
-                  "color": "#8E8E8E",
-                  "index": 1
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          },
-          "color": {
-            "mode": "thresholds"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "id": 2,
-      "gridPos": {
-        "x": 0,
-        "y": 1,
-        "w": 4,
-        "h": 4
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Plan o estado",
-      "description": "Grupo en RADIUS: el plan contratado, o el estado si facturación lo suspendió o le dio de baja.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres-radius"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres-radius"
-          },
-          "rawSql": "SELECT groupname AS plan FROM radusergroup WHERE username = '$abonado' ORDER BY priority LIMIT 1",
-          "format": "table",
-          "rawQuery": true,
-          "editorMode": "code",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "moroso": {
-                  "text": "Suspendido por falta de pago",
-                  "color": "red",
-                  "index": 0
-                },
-                "baja": {
-                  "text": "Dado de baja",
-                  "color": "#8E8E8E",
-                  "index": 1
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          },
-          "color": {
-            "mode": "thresholds"
-          },
-          "noValue": "No existe en RADIUS"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "/^plan$/",
-          "values": false
-        },
-        "text": {
-          "valueSize": 30
-        }
-      },
-      "id": 3,
-      "gridPos": {
-        "x": 4,
-        "y": 1,
-        "w": 5,
-        "h": 4
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Conectado hace",
-      "description": "Desde el inicio de la sesión actual.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres-radius"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres-radius"
-          },
-          "rawSql": "SELECT EXTRACT(EPOCH FROM now() - acctstarttime) AS segundos FROM radacct WHERE username = '$abonado' AND acctstoptime IS NULL ORDER BY acctstarttime DESC LIMIT 1",
-          "format": "table",
-          "rawQuery": true,
-          "editorMode": "code",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          },
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "noValue": "—"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "none",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "id": 4,
-      "gridPos": {
-        "x": 9,
-        "y": 1,
-        "w": 4,
-        "h": 4
-      }
-    },
-    {
-      "type": "stat",
-      "title": "IP asignada",
-      "description": "IP de la sesión actual.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres-radius"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres-radius"
-          },
-          "rawSql": "SELECT host(framedipaddress) AS ip FROM radacct WHERE username = '$abonado' AND acctstoptime IS NULL ORDER BY acctstarttime DESC LIMIT 1",
-          "format": "table",
-          "rawQuery": true,
-          "editorMode": "code",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          },
-          "color": {
-            "mode": "thresholds"
-          },
-          "noValue": "—"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "none",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "/^ip$/",
-          "values": false
-        },
-        "text": {
-          "valueSize": 30
-        }
-      },
-      "id": 5,
-      "gridPos": {
-        "x": 13,
-        "y": 1,
-        "w": 4,
-        "h": 4
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Último aviso de accounting",
-      "description": "R1 avisa cada 5 min (Interim). Rojo = más de 11 min sin aviso: el consumo está atrasado (o la sesión quedó abierta en la base y ya no existe en R1).",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres-radius"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres-radius"
-          },
-          "rawSql": "SELECT EXTRACT(EPOCH FROM now() - acctupdatetime) AS segundos FROM radacct WHERE username = '$abonado' AND acctstoptime IS NULL ORDER BY acctstarttime DESC LIMIT 1",
-          "format": "table",
-          "rawQuery": true,
-          "editorMode": "code",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 660
-              }
-            ]
-          },
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "noValue": "—"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "id": 6,
-      "gridPos": {
-        "x": 17,
-        "y": 1,
-        "w": 4,
-        "h": 4
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Consumo de la sesión actual",
-      "description": "Bytes desde que se conectó, según el último aviso de accounting.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "postgres-radius"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "postgres-radius"
-          },
-          "rawSql": "SELECT acctinputoctets AS \"subió\", acctoutputoctets AS \"bajó\" FROM radacct WHERE username = '$abonado' AND acctstoptime IS NULL ORDER BY acctstarttime DESC LIMIT 1",
-          "format": "table",
-          "rawQuery": true,
-          "editorMode": "code",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "decbytes",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          },
-          "color": {
-            "mode": "thresholds"
-          },
-          "noValue": "—"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "none",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "id": 7,
-      "gridPos": {
-        "x": 21,
-        "y": 1,
-        "w": 3,
-        "h": 4
-      }
-    },
-    {
-      "id": 8,
-      "type": "row",
-      "title": "Tráfico y logins",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 5,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "type": "timeseries",
-      "title": "Velocidad del abonado",
-      "description": "Medido en R1, en la interfaz de la sesión PPPoE. El tope es el del plan (cola en R1). Sin línea = no estaba conectado.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "rate(mktxp_interface_rx_byte_total{name=\"<pppoe-$abonado>\"}[$__rate_interval]) * 8",
-          "legendFormat": "sube",
-          "instant": false,
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "rate(mktxp_interface_tx_byte_total{name=\"<pppoe-$abonado>\"}[$__rate_interval]) * 8",
-          "legendFormat": "baja",
-          "instant": false,
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bps",
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 0,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            },
-            "axisLabel": "",
-            "showPoints": "never",
-            "spanNulls": false,
-            "barAlignment": 0,
-            "axisSoftMin": null,
-            "axisSoftMax": null
-          },
-          "color": {
-            "mode": "palette-classic"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "sube"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "purple"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "baja"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "blue"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 9,
-      "gridPos": {
-        "x": 0,
-        "y": 6,
-        "w": 16,
-        "h": 8
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Logins en el rango elegido",
-      "description": "Del log de FreeRADIUS (incluye pruebas de test.sh). El motivo de cada rechazo está abajo.",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "sum(count_over_time({container=\"freeradius\"} |= \"Login OK\" |= \"[$abonado]\" [$__range])) or vector(0)",
-          "legendFormat": "aceptados",
-          "queryType": "instant",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "sum(count_over_time({container=\"freeradius\"} |= \"Login incorrect\" |= \"[$abonado]\" [$__range])) or vector(0)",
-          "legendFormat": "rechazados",
-          "queryType": "instant",
-          "refId": "B"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          },
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "noValue": "0"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "A"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "green"
-                }
-              },
-              {
-                "id": "displayName",
-                "value": "aceptados"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "B"
-            },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": null
-                    },
-                    {
-                      "color": "orange",
-                      "value": 1
-                    }
-                  ]
-                }
-              },
-              {
-                "id": "displayName",
-                "value": "rechazados"
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "id": 10,
-      "gridPos": {
-        "x": 16,
-        "y": 6,
-        "w": 8,
-        "h": 8
-      }
-    },
-    {
-      "id": 11,
-      "type": "row",
-      "title": "Historial",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 14,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
       "type": "table",
-      "title": "Sesiones (las últimas 30)",
-      "description": "Del accounting (radacct). En rojo, los cortes anormales. Horas en la zona del navegador.",
+      "title": "Resultados de la búsqueda",
+      "description": "Coincidencias por usuario (parte del nombre), IP (actual o de una sesión anterior), MAC del equipo o nombre del cliente. Máximo 50. Click en el abonado para ver su ficha.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "postgres-radius"
@@ -823,7 +116,7 @@
             "type": "grafana-postgresql-datasource",
             "uid": "postgres-radius"
           },
-          "rawSql": "SELECT acctstarttime AS \"Conectó\",\n       acctstoptime AS \"Desconectó\",\n       EXTRACT(EPOCH FROM COALESCE(acctstoptime, acctupdatetime, now()) - acctstarttime) AS \"Duración\",\n       host(framedipaddress) AS \"IP\",\n       acctinputoctets AS \"Subió\",\n       acctoutputoctets AS \"Bajó\",\n       CASE acctterminatecause\n      WHEN 'User-Request' THEN 'El abonado cortó'\n      WHEN 'Session-Timeout' THEN 'Tiempo máximo de sesión'\n      WHEN 'Idle-Timeout' THEN 'Inactividad'\n      WHEN 'Admin-Reset' THEN 'Un operador la cortó'\n      WHEN 'NAS-Request' THEN 'R1 la cortó (a mano o por orden de facturación)'\n      WHEN 'Lost-Carrier' THEN 'Se perdió el enlace'\n      WHEN 'Lost-Service' THEN 'Se perdió el servicio'\n      WHEN 'NAS-Error' THEN 'Error de R1'\n      WHEN 'NAS-Reboot' THEN 'R1 se reinició'\n      WHEN 'Port-Error' THEN 'Error de puerto'\n      ELSE CASE WHEN acctstoptime IS NULL THEN 'Sigue conectado' ELSE 'Sin causa informada' END\n    END AS \"Cómo terminó\"\nFROM radacct WHERE username = '$abonado'\nORDER BY acctstarttime DESC LIMIT 30",
+          "rawSql": "WITH b AS (SELECT trim(${buscar:sqlstring}) AS t),\ncand AS (\n  SELECT g.username FROM radusergroup g, b WHERE b.t <> '' AND g.username ILIKE '%' || b.t || '%'\n  UNION\n  SELECT r.username FROM radacct r, b\n   WHERE r.framedipaddress = (CASE WHEN b.t ~ '^[0-9]{1,3}(\\.[0-9]{1,3}){3}$' THEN b.t END)::inet\n  UNION\n  SELECT r.username FROM radacct r, b WHERE b.t <> '' AND r.callingstationid = upper(b.t)\n  UNION\n  SELECT s.radius_username FROM facturacion.servicio s JOIN facturacion.cliente c ON c.id = s.cliente_id, b\n   WHERE b.t <> '' AND c.nombre ILIKE '%' || b.t || '%'\n)\nSELECT c.username AS \"Abonado\",\n       cl.nombre AS \"Cliente\",\n       g.groupname AS \"Plan o estado\",\n       CASE WHEN u.acctstarttime IS NOT NULL AND u.acctstoptime IS NULL THEN 'Conectado' ELSE 'Desconectado' END AS \"Ahora\",\n       host(u.framedipaddress) AS \"IP\",\n       u.callingstationid AS \"MAC\",\n       u.acctstarttime AS \"Última conexión\"\nFROM (SELECT DISTINCT username FROM cand) c\nLEFT JOIN LATERAL (SELECT * FROM radacct r WHERE r.username = c.username ORDER BY r.acctstarttime DESC LIMIT 1) u ON true\nLEFT JOIN LATERAL (SELECT groupname FROM radusergroup x WHERE x.username = c.username ORDER BY priority LIMIT 1) g ON true\nLEFT JOIN facturacion.servicio s ON s.radius_username = c.username\nLEFT JOIN facturacion.cliente cl ON cl.id = s.cliente_id\nORDER BY length(c.username), c.username\nLIMIT 50\n",
           "format": "table",
           "rawQuery": true,
           "editorMode": "code",
@@ -838,65 +131,48 @@
               "type": "auto"
             }
           },
-          "noValue": "Sin sesiones registradas"
+          "noValue": "Escribí arriba un usuario, una IP, una MAC o el nombre del cliente"
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "Desconectó"
+              "options": "Abonado"
             },
             "properties": [
               {
-                "id": "noValue",
-                "value": "—"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Duración"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "s"
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Ver la ficha de ${__value.raw}",
+                    "url": "/d/ficha-abonado?var-abonado=${__value.raw}&${__url_time_range}"
+                  }
+                ]
               },
               {
-                "id": "decimals",
-                "value": 0
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Subió"
+              "options": "Última conexión"
             },
             "properties": [
               {
                 "id": "unit",
-                "value": "decbytes"
+                "value": "dateTimeFromNow"
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Bajó"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "decbytes"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Cómo terminó"
+              "options": "Ahora"
             },
             "properties": [
               {
@@ -905,35 +181,49 @@
                   {
                     "type": "value",
                     "options": {
-                      "Se perdió el enlace": {
-                        "text": "Se perdió el enlace",
+                      "Conectado": {
+                        "text": "Conectado",
+                        "color": "green",
+                        "index": 0
+                      },
+                      "Desconectado": {
+                        "text": "Desconectado",
+                        "color": "#8E8E8E",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Plan o estado"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "moroso": {
+                        "text": "Suspendido por falta de pago",
                         "color": "red",
                         "index": 0
                       },
-                      "Se perdió el servicio": {
-                        "text": "Se perdió el servicio",
-                        "color": "red",
+                      "baja": {
+                        "text": "Dado de baja",
+                        "color": "#8E8E8E",
                         "index": 1
-                      },
-                      "Error de R1": {
-                        "text": "Error de R1",
-                        "color": "red",
-                        "index": 2
-                      },
-                      "R1 se reinició": {
-                        "text": "R1 se reinició",
-                        "color": "red",
-                        "index": 3
-                      },
-                      "Error de puerto": {
-                        "text": "Error de puerto",
-                        "color": "red",
-                        "index": 4
-                      },
-                      "Sigue conectado": {
-                        "text": "Sigue conectado",
-                        "color": "green",
-                        "index": 5
                       }
                     }
                   }
@@ -957,136 +247,375 @@
         }
       },
       "transformations": [],
-      "id": 12,
+      "id": 2,
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 1,
         "w": 24,
         "h": 8
       }
     },
     {
-      "id": 13,
+      "id": 3,
       "type": "row",
-      "title": "Logs del abonado: FreeRADIUS, R1 y facturación",
+      "title": "Abonados con problemas ahora (la lista crece con los problemas, no con los abonados)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 9,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "type": "logs",
-      "title": "Intentos de login, con el motivo",
-      "description": "Del log de FreeRADIUS: Login OK, o Login incorrect con el motivo (contraseña, usuario inexistente, suspendido). Cliente r1 = abonado real; dockernet = prueba de test.sh. La MAC está en 'cli'.",
+      "type": "table",
+      "title": "Abonados con problemas",
+      "description": "Logins rechazados en la última hora (contraseña, usuario inexistente o suspendido), cortes anormales en 24 h (se perdió el enlace o el servicio) y sesiones abiertas sin aviso de accounting hace más de 11 min. Los cortes porque R1 se reinició no se listan: son de R1, no de cada abonado (alerta R1Reiniciado). Click en el abonado para ver su ficha.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-radius"
       },
       "targets": [
         {
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-radius"
           },
-          "expr": "{container=\"freeradius\"} |= \"Auth:\" |= \"[$abonado]\"",
-          "queryType": "range",
+          "rawSql": "WITH rech AS (\n  SELECT username, count(*) AS n, max(authdate) AS ult\n    FROM radpostauth\n   WHERE reply = 'Access-Reject' AND authdate > now() - interval '1 hour'\n   GROUP BY username\n)\nSELECT abonado AS \"Abonado\", problema AS \"Problema\", detalle AS \"Detalle\", cuando AS \"Último\" FROM (\n  SELECT r.username AS abonado,\n         CASE g.groupname WHEN 'moroso' THEN 'Suspendido y sigue intentando'\n                          WHEN 'baja'   THEN 'Dado de baja y sigue intentando'\n                          ELSE 'Logins rechazados' END AS problema,\n         r.n || ' rechazos en la última hora' AS detalle, r.ult AS cuando, 1 AS orden\n    FROM rech r\n    LEFT JOIN LATERAL (SELECT groupname FROM radusergroup x WHERE x.username = r.username ORDER BY priority LIMIT 1) g ON true\n  UNION ALL\n  SELECT username, 'Corte anormal',\n         CASE acctterminatecause WHEN 'Lost-Carrier' THEN 'Se perdió el enlace' WHEN 'Lost-Service' THEN 'Se perdió el servicio'\n              WHEN 'NAS-Error' THEN 'Error de R1' ELSE 'Error de puerto' END || ' (' || count(*) || ' en 24 h)',\n         max(acctstoptime), 2\n    FROM radacct\n   WHERE acctstoptime > now() - interval '24 hours'\n     AND acctterminatecause IN ('Lost-Carrier', 'Lost-Service', 'NAS-Error', 'Port-Error')\n   GROUP BY username, acctterminatecause\n  UNION ALL\n  SELECT username, 'Accounting atrasado',\n         'sin aviso hace ' || (extract(epoch FROM now() - acctupdatetime)::int / 60) || ' min (¿sesión fantasma?)',\n         acctupdatetime, 3\n    FROM radacct\n   WHERE acctstoptime IS NULL AND acctupdatetime < now() - interval '11 minutes'\n) p\nORDER BY orden, cuando DESC\nLIMIT 100\n",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
           "refId": "A"
         }
       ],
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending",
-        "enableLogDetails": true,
-        "dedupStrategy": "none",
-        "prettifyLogMessage": false,
-        "showLabels": false,
-        "showCommonLabels": false
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "noValue": "Ningún abonado con problemas"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Abonado"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Ver la ficha de ${__value.raw}",
+                    "url": "/d/ficha-abonado?var-abonado=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Último"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Problema"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "Logins rechazados": {
+                        "text": "Logins rechazados",
+                        "color": "orange",
+                        "index": 0
+                      },
+                      "Suspendido y sigue intentando": {
+                        "text": "Suspendido y sigue intentando",
+                        "color": "yellow",
+                        "index": 1
+                      },
+                      "Dado de baja y sigue intentando": {
+                        "text": "Dado de baja y sigue intentando",
+                        "color": "#8E8E8E",
+                        "index": 2
+                      },
+                      "Corte anormal": {
+                        "text": "Corte anormal",
+                        "color": "red",
+                        "index": 3
+                      },
+                      "Accounting atrasado": {
+                        "text": "Accounting atrasado",
+                        "color": "red",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
       },
-      "id": 14,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "transformations": [],
+      "id": 4,
       "gridPos": {
         "x": 0,
-        "y": 24,
-        "w": 8,
-        "h": 9
+        "y": 10,
+        "w": 24,
+        "h": 8
       }
     },
     {
-      "type": "logs",
-      "title": "R1: conexiones y cortes PPPoE",
-      "description": "Del lado de R1: se conectó (con IP y MAC), se autenticó, se desconectó (con bytes) y por qué.",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "{instance=\"r1\", topic=\"ppp\"} |= \"$abonado\"",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending",
-        "enableLogDetails": true,
-        "dedupStrategy": "none",
-        "prettifyLogMessage": false,
-        "showLabels": false,
-        "showCommonLabels": false
-      },
-      "id": 15,
+      "id": 5,
+      "type": "row",
+      "title": "Resumen",
+      "collapsed": false,
       "gridPos": {
-        "x": 8,
-        "y": 24,
-        "w": 8,
-        "h": 9
-      }
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
     },
     {
-      "type": "logs",
-      "title": "Facturación: suspensiones y rehabilitaciones",
-      "description": "Lo que hicieron los jobs con este abonado y si la orden de corte llegó a R1.",
+      "type": "stat",
+      "title": "Abonados",
+      "description": "Activos = en un plan. Suspendidos = por falta de pago (facturación). Conectados ahora = con sesión abierta en el accounting.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-radius"
       },
       "targets": [
         {
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-radius"
           },
-          "expr": "{service=\"facturacion\"} |= \"$abonado\"",
-          "queryType": "range",
+          "rawSql": "SELECT count(*) FILTER (WHERE g.groupname NOT IN ('moroso', 'baja')) AS \"Activos\",\n       count(*) FILTER (WHERE g.groupname = 'moroso')                AS \"Suspendidos\",\n       count(*) FILTER (WHERE g.groupname = 'baja')                  AS \"De baja\",\n       (SELECT count(*) FROM radacct WHERE acctstoptime IS NULL)     AS \"Conectados ahora\"\nFROM (SELECT DISTINCT ON (username) username, groupname FROM radusergroup ORDER BY username, priority) g\n",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
           "refId": "A"
         }
       ],
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending",
-        "enableLogDetails": true,
-        "dedupStrategy": "none",
-        "prettifyLogMessage": false,
-        "showLabels": false,
-        "showCommonLabels": false
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0
+        },
+        "overrides": []
       },
-      "id": 16,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 6,
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 9,
+        "h": 5
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Abonados activos por plan",
+      "description": "Plan contratado (grupo en RADIUS).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-radius"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-radius"
+          },
+          "rawSql": "SELECT g.groupname AS plan, count(*) AS abonados\nFROM (SELECT DISTINCT ON (username) username, groupname FROM radusergroup ORDER BY username, priority) g\nWHERE g.groupname NOT IN ('moroso', 'baja')\nGROUP BY 1 ORDER BY 2 DESC\n",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "displayName": "${__data.fields.plan}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "text": {
+          "titleSize": 14,
+          "valueSize": 18
+        }
+      },
+      "id": 7,
+      "gridPos": {
+        "x": 9,
+        "y": 19,
+        "w": 7,
+        "h": 5
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Los 10 que más consumen (24 h, del accounting)",
+      "description": "Suma de subida y bajada de sus sesiones de las últimas 24 h, según el accounting (lo que se factura). Sirve para ver abusos o un equipo infectado. Click en la barra para ver la ficha.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres-radius"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres-radius"
+          },
+          "rawSql": "SELECT username AS abonado, sum(acctinputoctets + acctoutputoctets) AS bytes\nFROM radacct\nWHERE acctstoptime IS NULL OR acctstoptime > now() - interval '24 hours'\nGROUP BY username\nORDER BY bytes DESC\nLIMIT 10\n",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "decimals": 1,
+          "min": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "displayName": "${__data.fields.abonado}",
+          "links": [
+            {
+              "title": "Ver la ficha de ${__data.fields.abonado}",
+              "url": "/d/ficha-abonado?var-abonado=${__data.fields.abonado}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "sizing": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "text": {
+          "titleSize": 12,
+          "valueSize": 14
+        }
+      },
+      "id": 8,
       "gridPos": {
         "x": 16,
-        "y": 24,
+        "y": 19,
         "w": 8,
-        "h": 9
+        "h": 10
       }
     }
   ]

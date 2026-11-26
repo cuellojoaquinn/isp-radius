@@ -33,14 +33,14 @@ scripts/demo/abonados.sh conectar      # sus conexiones PPPoE en R2 y R3
 scripts/demo/abonados.sh trafico on    # tráfico en tiempo real
 scripts/demo/abonados.sh estado        # tienen que aparecer 12
 ```
-Pantalla: **Componentes**, con la fila *En vivo* arriba y refresco cada 10 s. En otra pestaña, **Abonados**.
+Pantalla: **Componentes**, con la fila *En vivo* arriba y refresco cada 10 s. En otra pestaña, **Abonados** (búsqueda, problemas y resumen); de ahí, click en un abonado abre su **ficha**.
 
 | Min | Acto | Comando | Qué se ve |
 |---|---|---|---|
 | 0 | Punto de partida | — | Componentes: 12 abonados conectados y la lista de *Logins en vivo*. Mapa: "12 sesiones" |
 | 2 | Se conectan los clientes | `scripts/demo/abonados.sh conectar` (vuelve a crear las 10 conexiones) | En *Logins en vivo* entran los 10 `Login OK` en segundos, cada uno con su usuario y la MAC de su router. Para mostrar el alta desde cero, ver la sección *Alta de un cliente* |
-| 5 | Tráfico por cliente | — | Abonados: abonado5 (streaming, ~100 kbit/s constante), abonado4 (ráfagas) y abonado3 (casi nada). El historial de sesiones. Infraestructura: tráfico de R1 hacia abonados |
-| 7 | Contraseña equivocada | `scripts/demo/fuerza-bruta.sh 3` | Abonados (abonado2): `Login incorrect` con el motivo. *Logins en vivo* se llena de rechazos. Si supera 20 en 5 min, suena la alerta PosibleFuerzaBruta |
+| 5 | Tráfico por cliente | — | Abonados → top 10 de consumo → click: ficha de abonado5 (streaming, ~100 kbit/s constante), abonado4 (ráfagas) y abonado3 (casi nada). El historial de sesiones. Infraestructura: tráfico de R1 hacia abonados |
+| 7 | Contraseña equivocada | `scripts/demo/fuerza-bruta.sh 3` | Abonados: abonado2 aparece en *Abonados con problemas* (logins rechazados). Su ficha: `Login incorrect` con el motivo. *Logins en vivo* se llena de rechazos. Si supera 20 en 5 min, suena la alerta PosibleFuerzaBruta |
 | 10 | Un cliente no paga | `scripts/demo/deuda.sh abonado5` y después `suspender` (sección 3) | La curva de abonado5 se corta en vivo y la sesión termina con "R1 la cortó (a mano o por orden de facturación)". Con pago y `rehabilitar`, vuelve |
 | 12 | Se cae la base | Sección 5 | Mapa en rojo. Los conectados siguen navegando: las curvas no se cortan. Alerta urgente y diagnóstico por Telegram |
 | 14 | Corte de luz en R1 | `VBoxManage controlvm isp-radius_r1 reset` | Los 12 abonados caen a 0 y se reconectan todos juntos: tormenta de logins en *Logins en vivo*. Alerta R1Reiniciado |
@@ -62,7 +62,7 @@ scripts/demo/abonados.sh trafico on 11
 **Qué se ve:**
 - En *Logins en vivo* aparece `Login OK: [abonado13]`.
 - *Abonados conectados* pasa a 13.
-- En **Abonados**, abonado13 ya figura en la lista, con su plan.
+- En **Abonados**, buscar `abonado13` (o `demo 13`): aparece con su plan; click abre su ficha.
 - **Lado de facturación:** el menú (`vagrant ssh db -t -c /vagrant/facturacion/menu.sh`, opción 1) muestra al "Cliente demo 13" con su servicio activo. El alta se puede hacer también desde el menú (opciones 5 y 6), pero entonces hay que cargar la conexión en el router a mano.
 
 ## 1. Recorrido: un dashboard por pregunta (3 min)
@@ -71,7 +71,8 @@ scripts/demo/abonados.sh trafico on 11
 |---|---|
 | **Mapa** | Quién depende de quién y en qué estado está cada conexión. Click en un círculo para ir a sus logs y dashboards. La base es una sola para RADIUS y facturación. |
 | **Servicio** | Los 4 indicadores contra sus objetivos, cada uno con su muestra. Alertas activas. El presupuesto de error "Agotado" y por qué pasa en el lab. |
-| **Abonados** | Elegir abonado1: conectado, plan, IP, consumo, velocidad, sesiones con la causa de corte y logs. |
+| **Abonados** | Buscar por usuario, IP, MAC o cliente; quién tiene problemas ahora; resumen y top de consumo. No es una lista de todos: escala a miles. |
+| **Ficha del abonado** | Click en un abonado (o en el usuario de un login): conectado, plan, IP, consumo, velocidad, sesiones con la causa de corte y logs. |
 | **Componentes / PostgreSQL / Infraestructura** | Dónde se busca la causa: qué pieza, la base, las máquinas. |
 | **Logs** | El buscador de texto, por ejemplo con `abonado2`. |
 
@@ -82,7 +83,7 @@ scripts/demo/abonados.sh trafico on 11
 vagrant ssh freeradius -c 'S=$(grep RADIUS_SECRET_LOCAL /vagrant/freeradius/.env | cut -d= -f2); radtest -t chap abonado1 secreto1 127.0.0.1 0 $S; radtest -t chap abonado1 mala 127.0.0.1 0 $S'
 ```
 **Qué mirar:**
-- Abonados (abonado1), *Intentos de login, con el motivo*: `Login OK` y `Login incorrect (... password is incorrect)`, con cliente `dockernet`.
+- Ficha de abonado1, *Intentos de login, con el motivo*: `Login OK` y `Login incorrect (... password is incorrect)`, con cliente `dockernet`.
 - Los logins que vienen de R1 dicen `client r1` y traen la MAC del equipo.
 
 ## 3. Facturación: suspensión por falta de pago y rehabilitación (5 min)
@@ -92,7 +93,7 @@ scripts/demo/deuda.sh abonado2                    # factura vencida ayer, impaga
 vagrant ssh db -c 'systemd-cat -t facturacion-suspender --stderr-priority=err /vagrant/facturacion/suspender.sh'
 ```
 **Qué mirar:**
-- **Abonados (abonado2)**: *Plan o estado* = "Suspendido por falta de pago", la sesión terminó con "R1 la cortó (a mano o por orden de facturación)" y los intentos de R3 se rechazan.
+- **Abonados**: abonado2 aparece en *Abonados con problemas* (suspendido y sigue intentando). En su ficha, *Plan o estado* = "Suspendido por falta de pago", la sesión terminó con "R1 la cortó (a mano o por orden de facturación)" y los intentos de R3 se rechazan.
 - **Logs**, fila Facturación: `Suspendido: abonado2` y `sesión en 10.10.10.1 cortada (Disconnect-ACK)`.
 - **Mapa**: la conexión Facturación → FreeRADIUS pasa a verde ("1 disconnect/24 h"), o a amarillo si en las últimas 24 h hubo alguna orden sin confirmar.
 
@@ -108,7 +109,7 @@ Si no se corre a mano, el cron lo hace solo en menos de 5 min. abonado2 se recon
 ```bash
 vagrant ssh db -t -c '/vagrant/facturacion/menu.sh'   # opción 7: abonado1 -> plan-10m
 ```
-- R1 cambia la velocidad **sin cortar la sesión**: en Abonados, el *tiempo conectado* sigue corriendo.
+- R1 cambia la velocidad **sin cortar la sesión**: en la ficha del abonado, el *tiempo conectado* sigue corriendo.
 - Para ver el tope de la cola, lanzar a mano un `/tool bandwidth-test` desde R2.
 - **Volver:** misma opción, `plan-50m`.
 
@@ -152,7 +153,7 @@ VBoxManage controlvm isp-radius_r1 reset          # como un corte de luz
 scripts/demo/fuerza-bruta.sh 5     # R3 con contraseña equivocada durante 5 min; después se restaura sola
 ```
 **Qué mirar:**
-- **Abonados (abonado2)**: los `Login incorrect` con la MAC de R3.
+- **Abonados**: abonado2 en *Abonados con problemas*; en su ficha, los `Login incorrect` con la MAC de R3.
 - Con más de 20 rechazos en 5 min suena **PosibleFuerzaBruta** (ticket, sale del log), agrupada por MAC.
 
 ## Si algo no anda
@@ -160,7 +161,7 @@ scripts/demo/fuerza-bruta.sh 5     # R3 con contraseña equivocada durante 5 min
 | Síntoma | Dónde mirar |
 |---|---|
 | Un panel vacío | Infraestructura, *Fuentes de datos*: qué exporter no responde. |
-| Un abonado no conecta | Abonados: el motivo del rechazo; ¿está suspendido? |
+| Un abonado no conecta | Abonados: buscarlo (usuario, IP, MAC o nombre) y abrir su ficha: el motivo del rechazo; ¿está suspendido? |
 | No llegan mensajes a Telegram | `vagrant ssh grafana -c 'docker logs alertmanager 2>&1 \| grep arrancar.sh'` tiene que decir "Telegram activado". |
 | El agente no diagnostica | `vagrant ssh grafana -c 'docker logs diagnostico \| tail'`: falta la clave, la clave es inválida o no hay salida a internet. |
 | La orden de corte no llega | R1: `/radius incoming print` tiene que decir `accept: yes`. Si R1 no respondía, FreeRADIUS lo marca caído por un rato: `docker restart freeradius`. |

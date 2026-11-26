@@ -132,7 +132,8 @@ La red `gestion` es interna de VirtualBox: el Vagrantfile redirige las interface
 
 - **Mapa** — ¿dónde está el problema? Dependencias del servicio (abonados → R1 → FreeRADIUS → PostgreSQL, y facturación) con la salud de cada conexión: verde sano, amarillo degradado, rojo falla, gris = no sé o no lo medimos. Click en un nodo: sus logs y dashboards. El modelo vive en `grafana/prometheus/rules/topologia.yml` (con tests) y es solo vista: no alerta.
 - **Servicio** — ¿anda bien para los abonados? Los 4 SLIs contra sus objetivos (cada porcentaje con su muestra), alertas activas, presupuesto de error en pedidos (usados / permitidos), velocidad de gasto y cómo terminaron las sesiones.
-- **Abonados** — ¿qué le pasa a *este* abonado? (se elige arriba). Si está conectado, plan o suspensión, consumo, velocidad, sesiones con la causa de corte, intentos de login con el motivo y sus logs en R1 y facturación. Vista de soporte.
+- **Abonados** — ¿a quién hay que mirar? Buscar por usuario, IP, MAC o nombre del cliente; los abonados con problemas ahora (rechazos, cortes anormales, accounting atrasado, suspendidos que insisten); resumen por estado y plan, y los 10 que más consumen. No es una lista de todos: crece con los problemas, no con los abonados.
+- **Ficha del abonado** — ¿qué le pasa a *este* abonado? Se llega con un click desde Abonados o desde el usuario de cualquier login (*Logins en vivo*). Si está conectado, plan o suspensión, consumo, velocidad, sesiones con la causa de corte, intentos de login con el motivo y sus logs en R1 y facturación.
 - **Componentes** — ¿qué pieza falla? R1 como cliente RADIUS, FreeRADIUS, R1 como servidor PPPoE y los jobs de facturación.
 - **PostgreSQL** — ¿la base aguanta? Conexiones, consultas lentas, bloqueos, errores y espacio.
 - **Infraestructura** — ¿las máquinas aguantan? Las 3 VMs y R1: fuentes de datos, procesador, memoria, disco, reinicios y red.
@@ -189,6 +190,7 @@ En VMs creadas antes de los logs: `vagrant provision <vm> --provision-with base`
 
 - Los scripts de `db/init/` corren **solo con el volumen vacío**. Para reinicializar: `docker-compose down -v` (borra los datos).
 - FreeRADIUS corre **sin `-X`**: el log tiene una línea por login (`Login OK` / `Login incorrect` con el motivo) y los errores, sin contraseñas (`freeradius/radiusd.conf`, sección `log`). Se ve con `docker logs freeradius` o en Grafana (Loki). Para depurar un problema puntual con el detalle de cada paquete, en la VM freeradius: `docker-compose stop freeradius && docker-compose run --rm --service-ports freeradius -X` (Ctrl+C y `docker-compose up -d freeradius` para volver). Ojo: `-X` imprime la contraseña de la base y los secrets.
+- `db/init/09-abonados-busqueda.sql`: índices para buscar abonados y lectura (por columna) de los nombres de clientes para Grafana.
 - `db/init/04-exporter.sh` crea el usuario `exporter`. En una base que ya existía, aplicarlo a mano: `vagrant ssh db -c "docker exec -i postgres bash < /vagrant/db/init/04-exporter.sh"`. Lo mismo con los scripts de facturación (`04` a `07`, el `05` necesita `FACTURACION_DB_PASSWORD` de `db/.env`) y con `08-radpostauth-sin-password.sql`.
 - Los jobs de facturación se instalan en la VM db con `sed "s#^REPO=.*#REPO=/vagrant#" /vagrant/facturacion/crontab.txt | crontab -`.
 - Las sesiones de prueba de `radacct` (`prueba-N`, generadas con `radclient` el 20/11) se borraron el 26/11. Los contadores del SLI 3 bajaron y Prometheus lo tomó como reinicio: hubo un salto falso en los cortes durante 24 h.

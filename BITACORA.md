@@ -580,3 +580,25 @@ Objetivo: que en la demo se pueda probar cada parte (guía en `DEMO.md`).
 - Por eso `rejects` se extrapola menos que `requests` y aparecen pedidos "sin respuesta" que no existieron: 9,47 pedidos contra 9,35 respuestas, con 0 timeouts. La conexión R1 → FreeRADIUS del mapa se pone en rojo unos minutos.
 - Pasa solo con contadores chicos y desaparece cuando la ventana avanza. Las alertas no disparan, porque exigen 3 fallas.
 - Arreglo posible a futuro: registrar `accepts + rejects` como una sola serie de respuestas y calcular `increase()` sobre esa serie, así la extrapolación es la misma para pedidos y respuestas.
+
+## 2026-11-27 — Abonados que escalan: búsqueda y problemas en lugar de un desplegable
+
+- **Problema:** el dashboard Abonados elegía el abonado en un desplegable con todos. Con 12 sirve; con miles hay que bajar todos los nombres, y para elegir hay que saber de antemano a quién mirar. En soporte la pregunta es "¿quién tiene problemas?" o "me llamó alguien con esta IP".
+- **Dos niveles:**
+  - **Abonados** (nuevo), la puerta de entrada:
+    - búsqueda por usuario, IP (actual o de una sesión anterior), MAC o nombre del cliente, máximo 50 resultados;
+    - **abonados con problemas ahora**: rechazos en 1 h, cortes anormales en 24 h, accounting atrasado, suspendidos que insisten;
+    - resumen por estado y plan, y los 10 que más consumen según el accounting.
+  - **Ficha del abonado**: el dashboard anterior, sin el desplegable (caja de texto). Se llega con un click desde Abonados o desde el usuario de cada login (campo derivado de Loki: *Logins en vivo* → "Ver la ficha").
+- **Por qué escala:**
+  - La lista de problemas crece con los problemas, no con los abonados.
+  - Los cortes porque R1 se reinició no se listan: son de R1, no de cada abonado; si no, un reinicio llenaría la lista con todos.
+  - Las consultas están acotadas en el tiempo y usan índices nuevos (`db/init/09`): `radacct` por usuario e inicio, por IP, por MAC y por fin; `radpostauth` por fecha. El esquema de FreeRADIUS no los trae.
+  - El top de consumo sale del accounting, no de Prometheus. Las métricas por abonado de mktxp (unas 24 series por sesión) sirven en el lab pero no escalan, y la ficha lo aclara.
+- **Seguridad:**
+  - La búsqueda usa la variable con formato `sqlstring`, que Grafana escapa como texto SQL; además, el usuario `grafana` es de solo lectura.
+  - Para buscar por nombre del cliente, `grafana` lee de facturación solo `cliente(id, nombre)`, `servicio` y los nombres de estados y planes. Las facturas y los importes no los lee.
+- **Grafana:**
+  - En provisioning, las variables entre llaves con signo pesos se reemplazan por variables de entorno: en el link del campo derivado hay que duplicar el signo pesos.
+  - En un bargauge, el filtro de campos se compara con el nombre que se muestra: si se cambia con `displayName`, el filtro deja de encontrar el campo ("No data").
+

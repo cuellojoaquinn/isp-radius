@@ -44,3 +44,11 @@ datasources:
     url: http://loki:3100
     jsonData:
       maxLines: 1000
+      # El usuario de cada "Login OK / Login incorrect" de FreeRADIUS es un link a su ficha
+      # (en Logins en vivo y en cualquier panel de logs: abrir la línea y click en Abonado).
+      derivedFields:
+        - name: Abonado
+          matcherRegex: 'Login (?:OK|incorrect.*?): \[([^\]]+)\]'
+          # $$ = $ literal: al leer este archivo Grafana reemplaza ${...} por variables de entorno
+          url: '/d/ficha-abonado?var-abonado=$${__value.raw}'
+          urlDisplayLabel: 'Ver la ficha de $${__value.raw}'
