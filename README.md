@@ -65,7 +65,7 @@ Requisitos: VirtualBox y Vagrant.
    scripts/crear-chr.sh r3 && scripts/configurar-chr.sh r3   # abonado2 (pppoe-client)
    ```
 
-   R2 y R3 traen un scheduler `trafico` (`mikrotik/abonado-trafico.rsc`) que genera tráfico de fondo hacia R1 (~220 kbit/s, 30 s de cada minuto), para que el accounting y "Tráfico por abonado" tengan datos. Para ver el tope del plan, lanzar a mano un `/tool bandwidth-test` desde el abonado. Para apagarlo: `/system scheduler disable trafico`.
+   R2 y R3 traen un scheduler `trafico` (`mikrotik/abonado-trafico.rsc`) que genera tráfico de fondo hacia R1 (~220 kbit/s, 30 s de cada minuto), para que el accounting y la "Velocidad del abonado" (dashboard Abonados) tengan datos. Para ver el tope del plan, lanzar a mano un `/tool bandwidth-test` desde el abonado. Para apagarlo: `/system scheduler disable trafico`.
 
    ```bash
    ```
