@@ -14,12 +14,13 @@ groups:
         expr: 'sum(rate({container="freeradius"} |= "Error: rlm_sql" [5m])) or vector(0)'
         labels: { instance: freeradius, service: radius }
 
-      # Qué fueron los rejects (el SLI 1 solo sabe que hubo respuesta)
+      # Qué fueron los rejects (el SLI 1 solo sabe que hubo respuesta). Solo los que
+      # vienen de R1 (abonados reales): sin las pruebas de test.sh (cliente dockernet).
       - record: radius:login_incorrecto:rate5m
-        expr: 'sum(rate({container="freeradius"} |= "Login incorrect" [5m])) or vector(0)'
+        expr: 'sum(rate({container="freeradius"} |= "Login incorrect" |= "from client r1 " [5m])) or vector(0)'
         labels: { instance: freeradius, service: radius }
       - record: radius:login_ok:rate5m
-        expr: 'sum(rate({container="freeradius"} |= "Login OK" [5m])) or vector(0)'
+        expr: 'sum(rate({container="freeradius"} |= "Login OK" |= "from client r1 " [5m])) or vector(0)'
         labels: { instance: freeradius, service: radius }
 
   - name: radius-logs-alertas

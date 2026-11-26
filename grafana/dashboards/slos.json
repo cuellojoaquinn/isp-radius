@@ -1803,7 +1803,7 @@
             "spanNulls": false,
             "barAlignment": 0,
             "axisSoftMin": 0.98,
-            "axisSoftMax": null
+            "axisSoftMax": 1
           },
           "color": {
             "mode": "palette-classic"
@@ -2169,7 +2169,7 @@
             "spanNulls": false,
             "barAlignment": 0,
             "axisSoftMin": null,
-            "axisSoftMax": null
+            "axisSoftMax": 1
           },
           "color": {
             "mode": "palette-classic"

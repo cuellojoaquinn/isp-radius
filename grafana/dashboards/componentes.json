@@ -1,48 +1,74 @@
 {
   "uid": "componentes",
   "title": "Componentes",
-  "description": "Causas: las cuatro señales doradas de R1 (cliente RADIUS y servidor PPPoE) y FreeRADIUS (bitácora 18/11). La base está en el dashboard PostgreSQL.",
+  "description": "¿Qué pieza del servicio falla? R1 como cliente RADIUS, FreeRADIUS, R1 como servidor PPPoE y los jobs de facturación. La base está en PostgreSQL y las máquinas en Infraestructura.",
   "tags": [
     "isp-radius",
     "causas"
   ],
-  "timezone": "browser",
   "schemaVersion": 39,
-  "refresh": "30s",
+  "editable": true,
+  "graphTooltip": 1,
   "time": {
     "from": "now-3h",
     "to": "now"
   },
-  "editable": false,
+  "refresh": "30s",
+  "timezone": "browser",
   "links": [
-    { "title": "Mapa", "type": "link", "url": "/d/mapa", "icon": "apps", "keepTime": true },
     {
-      "title": "Servicio RADIUS (SLOs)",
+      "title": "Mapa",
+      "type": "link",
+      "url": "/d/mapa",
+      "icon": "apps",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
+    },
+    {
+      "title": "Servicio",
       "type": "link",
       "url": "/d/slos",
       "icon": "dashboard",
-      "keepTime": true
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
+    },
+    {
+      "title": "Abonados",
+      "type": "link",
+      "url": "/d/abonados",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     },
     {
       "title": "PostgreSQL",
       "type": "link",
       "url": "/d/postgresql",
       "icon": "dashboard",
-      "keepTime": true
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     },
     {
       "title": "Infraestructura",
       "type": "link",
       "url": "/d/infraestructura",
       "icon": "dashboard",
-      "keepTime": true
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     },
     {
       "title": "Logs",
       "type": "link",
       "url": "/d/logs",
-      "icon": "doc",
-      "keepTime": true
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     }
   ],
   "templating": {
@@ -55,7 +81,7 @@
     {
       "id": 1,
       "type": "row",
-      "title": "R1 como cliente RADIUS (/radius monitor) — lo que vio el NAS",
+      "title": "R1 pregunta a FreeRADIUS: ¿le contestan? (lo que ve R1)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -66,101 +92,104 @@
       "panels": []
     },
     {
-      "id": 2,
       "type": "timeseries",
-      "title": "Tráfico · pedidos por minuto",
-      "description": "Incluye accounting: una reconexión suma 3 (Stop + Access-Request + Start).",
-      "gridPos": {
-        "x": 0,
-        "y": 1,
-        "w": 8,
-        "h": 8
-      },
+      "title": "Pedidos de R1 por minuto: respondidos y sin respuesta",
+      "description": "Logins y accounting que R1 mandó a FreeRADIUS. Sin respuesta: FreeRADIUS caído o la red de gestión. Respuesta descartada: el secreto compartido de R1 no coincide con el de FreeRADIUS. Todo por minuto.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "targets": [
         {
-          "refId": "A",
-          "expr": "sum(rate(routeros_radius_requests_total[$__rate_interval])) * 60",
-          "legendFormat": "requests"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum(rate(routeros_radius_accepts_total[$__rate_interval])) + sum(rate(routeros_radius_rejects_total[$__rate_interval]))) * 60",
+          "legendFormat": "respondidos",
+          "instant": false,
+          "range": true,
+          "refId": "A"
         },
         {
-          "refId": "B",
-          "expr": "sum(rate(routeros_radius_accepts_total[$__rate_interval])) * 60",
-          "legendFormat": "accepts"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(routeros_radius_timeouts_total[$__rate_interval])) * 60",
+          "legendFormat": "sin respuesta (timeout)",
+          "instant": false,
+          "range": true,
+          "refId": "B"
         },
         {
-          "refId": "C",
-          "expr": "sum(rate(routeros_radius_rejects_total[$__rate_interval])) * 60",
-          "legendFormat": "rejects"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(routeros_radius_bad_replies_total[$__rate_interval])) * 60",
+          "legendFormat": "respuesta descartada (clave distinta)",
+          "instant": false,
+          "range": true,
+          "refId": "C"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "none",
           "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": 1
           },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 3,
-      "type": "timeseries",
-      "title": "Errores · timeouts y bad-replies",
-      "description": "timeouts sin pedidos en FreeRADIUS (abajo) = red o servidor caído; bad-replies = shared secret distinto entre R1 y FreeRADIUS.",
-      "gridPos": {
-        "x": 8,
-        "y": 1,
-        "w": 8,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(increase(routeros_radius_timeouts_total[$__rate_interval]))",
-          "legendFormat": "timeouts (servidor no responde)"
-        },
-        {
-          "refId": "B",
-          "expr": "sum(increase(routeros_radius_bad_replies_total[$__rate_interval]))",
-          "legendFormat": "bad-replies (secret distinto)"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true
+          "color": {
+            "mode": "palette-classic"
           },
-          "min": 0
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 1
         },
         "overrides": [
           {
             "matcher": {
-              "id": "byRegexp",
-              "options": "timeouts.*"
+              "id": "byName",
+              "options": "respondidos"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "sin respuesta (timeout)"
             },
             "properties": [
               {
@@ -171,69 +200,19 @@
                 }
               }
             ]
-          }
-        ]
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 4,
-      "type": "timeseries",
-      "title": "Latencia · reenvíos y RTT",
-      "description": "El RTT es una muestra suelta (no un percentil): solo de referencia, no es SLI.",
-      "gridPos": {
-        "x": 16,
-        "y": 1,
-        "w": 8,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(increase(routeros_radius_resends_total[$__rate_interval]))",
-          "legendFormat": "reenvíos"
-        },
-        {
-          "refId": "B",
-          "expr": "max(routeros_radius_last_request_rtt_seconds)",
-          "legendFormat": "RTT último pedido"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true
-          }
-        },
-        "overrides": [
+          },
           {
             "matcher": {
               "id": "byName",
-              "options": "RTT último pedido"
+              "options": "respuesta descartada (clave distinta)"
             },
             "properties": [
               {
-                "id": "unit",
-                "value": "s"
-              },
-              {
-                "id": "custom.axisPlacement",
-                "value": "right"
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
               }
             ]
           }
@@ -242,39 +221,319 @@
       "options": {
         "legend": {
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
-          "mode": "multi"
+          "mode": "multi",
+          "sort": "desc"
         }
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 9,
+        "h": 8
       }
     },
     {
-      "id": 5,
-      "type": "stat",
-      "title": "Saturación · pendientes",
-      "description": "Pedidos esperando respuesta. Si crece, el servidor no da abasto.",
-      "gridPos": {
-        "x": 0,
-        "y": 9,
-        "w": 4,
-        "h": 4
-      },
+      "type": "timeseries",
+      "title": "Reenvíos por minuto (lentos)",
+      "description": "R1 reenvía un pedido cuando la respuesta tarda más de 3 s. Si sube: base lenta o FreeRADIUS saturado.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "targets": [
         {
-          "refId": "A",
-          "expr": "max(routeros_radius_pending)",
-          "legendFormat": "",
-          "instant": true
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(routeros_radius_resends_total[$__rate_interval])) * 60",
+          "legendFormat": "reenvíos",
+          "instant": false,
+          "range": true,
+          "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "none",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": 1
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "reenvíos"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 9,
+        "y": 1,
+        "w": 5,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Demora de la última respuesta",
+      "description": "Lo que tardó FreeRADIUS en contestar el último pedido. Es una muestra suelta, no un promedio: sirve de referencia, no para comparar con el objetivo.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(routeros_radius_last_request_rtt_seconds)",
+          "legendFormat": "último pedido",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": 0.05
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "último pedido"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 4,
+      "gridPos": {
+        "x": 14,
+        "y": 1,
+        "w": 5,
+        "h": 8
+      }
+    },
+    {
+      "type": "stat",
+      "title": "¿Se puede leer R1?",
+      "description": "Si dice No, Prometheus no puede consultar R1 por la API: lo que se ve en esta fila está desactualizado (alerta R1SinAcceso).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(routeros_exporter_up)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Sí",
+                  "color": "green",
+                  "index": 0
+                },
+                "0": {
+                  "text": "No",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Sin datos"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 19,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Pedidos de R1 esperando respuesta",
+      "description": "Pedidos enviados que todavía no tienen respuesta. Si crece y no baja, FreeRADIUS no da abasto.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(routeros_radius_pending)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -292,6 +551,9 @@
               }
             ]
           },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 0
         },
         "overrides": []
@@ -300,7 +562,10 @@
         "colorMode": "value",
         "graphMode": "area",
         "textMode": "auto",
-        "justifyMode": "center",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -308,392 +573,161 @@
           "fields": "",
           "values": false
         }
-      }
-    },
-    {
+      },
       "id": 6,
-      "type": "stat",
-      "title": "Exporter de R1",
-      "description": "0 = no puede leer R1 por la API (alerta R1SinAcceso).",
       "gridPos": {
-        "x": 4,
-        "y": 9,
-        "w": 4,
+        "x": 19,
+        "y": 5,
+        "w": 5,
         "h": 4
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "routeros_exporter_up",
-          "legendFormat": "",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
       }
     },
     {
       "id": 7,
       "type": "row",
-      "title": "FreeRADIUS (Status-Server) — lo que recibió el servidor",
+      "title": "FreeRADIUS: ¿procesa lo que le llega? (lo que ve el servidor)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 13,
+        "y": 9,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
+      "type": "stat",
+      "title": "¿FreeRADIUS responde?",
+      "description": "El exportador le pregunta su estado (Status-Server) cada 15 s. No = no contesta o contesta con error: FreeRADIUS caído o trabado.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(freeradius_up) * (1 - clamp_max(count(freeradius_stats_error{error!=\"\"}) or vector(0), 1))",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Responde",
+                  "color": "green",
+                  "index": 0
+                },
+                "0": {
+                  "text": "No responde",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Sin datos del exportador"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
       "id": 8,
-      "type": "stat",
-      "title": "FreeRADIUS",
-      "description": "0 = el exporter no puede consultar al servidor: FreeRADIUS caído.",
       "gridPos": {
         "x": 0,
-        "y": 14,
-        "w": 4,
+        "y": 10,
+        "w": 5,
         "h": 4
-      },
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Logins de abonados (última hora)",
+      "description": "Incluye las pruebas de test.sh. Rechazado = contraseña o usuario incorrecto, o abonado suspendido.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "targets": [
         {
-          "refId": "A",
-          "expr": "freeradius_up",
-          "legendFormat": "",
-          "instant": true
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum(increase(freeradius_total_access_accepts[1h])))",
+          "legendFormat": "aceptados",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum(increase(freeradius_total_access_rejects[1h])))",
+          "legendFormat": "rechazados",
+          "instant": true,
+          "range": false,
+          "refId": "B"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "none",
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "text",
                 "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 9,
-      "type": "timeseries",
-      "title": "NAS vs servidor · pedidos en 5 min",
-      "description": "Si R1 envía y el servidor no recibe, el problema está entre los dos (red, firewall) o el servidor está caído.",
-      "gridPos": {
-        "x": 4,
-        "y": 14,
-        "w": 10,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(increase(routeros_radius_requests_total[5m]))",
-          "legendFormat": "enviados por R1"
-        },
-        {
-          "refId": "B",
-          "expr": "sum(increase(freeradius_total_access_requests[5m])) + sum(increase(freeradius_total_acct_requests[5m]))",
-          "legendFormat": "recibidos por FreeRADIUS"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 10,
-      "type": "timeseries",
-      "title": "Respuestas y descartes",
-      "description": "Descartados = recibidos sin respuesta (servidor saturado o base lenta).",
-      "gridPos": {
-        "x": 14,
-        "y": 14,
-        "w": 10,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(freeradius_total_access_accepts[$__rate_interval])) * 60",
-          "legendFormat": "accepts/min"
-        },
-        {
-          "refId": "B",
-          "expr": "sum(rate(freeradius_total_access_rejects[$__rate_interval])) * 60",
-          "legendFormat": "rejects/min"
-        },
-        {
-          "refId": "C",
-          "expr": "sum(increase(freeradius_total_auth_dropped_requests[$__rate_interval])) + sum(increase(freeradius_total_acct_dropped_requests[$__rate_interval]))",
-          "legendFormat": "descartados"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 11,
-      "type": "timeseries",
-      "title": "Saturación · colas internas",
-      "description": "Pedidos esperando un thread. Crece si la base responde lento.",
-      "gridPos": {
-        "x": 0,
-        "y": 22,
-        "w": 12,
-        "h": 6
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max(freeradius_queue_len_auth)",
-          "legendFormat": "auth"
-        },
-        {
-          "refId": "B",
-          "expr": "max(freeradius_queue_len_acct)",
-          "legendFormat": "acct"
-        },
-        {
-          "refId": "C",
-          "expr": "max(freeradius_queue_len_internal)",
-          "legendFormat": "internal"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 12,
-      "type": "stat",
-      "title": "Error del Status-Server",
-      "description": "El exporter siempre publica freeradius_stats_error=1; el error real está en la etiqueta \"error\" (vacía = sin error).",
-      "gridPos": {
-        "x": 12,
-        "y": 22,
-        "w": 4,
-        "h": 6
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "count(freeradius_stats_error{error!=\"\"}) or vector(0)",
-          "legendFormat": "",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
               }
             ]
           },
-          "decimals": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 13,
-      "type": "row",
-      "title": "R1 como servidor PPPoE y como equipo",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 28,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "id": 14,
-      "type": "stat",
-      "title": "Sesiones PPPoE activas",
-      "description": "Locales debería ser 0: los abonados se gestionan solo en FreeRADIUS.",
-      "gridPos": {
-        "x": 0,
-        "y": 29,
-        "w": 6,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(routeros_ppp_active_sessions{radius=\"yes\"})",
-          "legendFormat": "por RADIUS",
-          "instant": true
-        },
-        {
-          "refId": "B",
-          "expr": "sum(routeros_ppp_active_sessions{radius=\"no\"})",
-          "legendFormat": "locales",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 0
         },
         "overrides": []
@@ -702,7 +736,10 @@
         "colorMode": "none",
         "graphMode": "none",
         "textMode": "value_and_name",
-        "justifyMode": "center",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -710,34 +747,873 @@
           "fields": "",
           "values": false
         }
+      },
+      "id": 9,
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 5,
+        "h": 4
       }
     },
     {
-      "id": 15,
-      "type": "stat",
-      "title": "Pool pool-pppoe usado",
-      "description": "Saturación: sin IPs libres el abonado se autentica pero no navega (alerta al 80 %).",
-      "gridPos": {
-        "x": 6,
-        "y": 29,
-        "w": 6,
-        "h": 5
-      },
+      "type": "timeseries",
+      "title": "Enviados por R1 y recibidos, por minuto",
+      "description": "Si R1 envía y FreeRADIUS no recibe, el problema está entre los dos (red de gestión, firewall). Recibidos puede ser mayor: incluye las pruebas de test.sh. Todo por minuto.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "targets": [
         {
-          "refId": "A",
-          "expr": "mktxp_ip_pool_used{pool=\"pool-pppoe\"} / mktxp_ip_pool_total{pool=\"pool-pppoe\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(routeros_radius_requests_total[$__rate_interval])) * 60",
+          "legendFormat": "enviados por R1",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum(rate(freeradius_total_access_requests[$__rate_interval])) + sum(rate(freeradius_total_acct_requests[$__rate_interval]))) * 60",
+          "legendFormat": "recibidos por FreeRADIUS (incluye pruebas)",
+          "instant": false,
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": 1
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "enviados por R1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "recibidos por FreeRADIUS (incluye pruebas)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 10,
+      "gridPos": {
+        "x": 5,
+        "y": 10,
+        "w": 7,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Respuestas de FreeRADIUS por minuto",
+      "description": "Descartado sin responder = FreeRADIUS recibió el pedido y lo tiró (saturado o la base no contesta). Todo por minuto.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(freeradius_total_access_accepts[$__rate_interval])) * 60",
+          "legendFormat": "login aceptado",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(freeradius_total_access_rejects[$__rate_interval])) * 60",
+          "legendFormat": "login rechazado",
+          "instant": false,
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(freeradius_total_acct_responses[$__rate_interval])) * 60",
+          "legendFormat": "accounting registrado",
+          "instant": false,
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum(rate(freeradius_total_auth_dropped_requests[$__rate_interval])) + sum(rate(freeradius_total_acct_dropped_requests[$__rate_interval]))) * 60",
+          "legendFormat": "descartado sin responder",
+          "instant": false,
+          "range": true,
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": 1
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "login aceptado"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "login rechazado"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "accounting registrado"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "descartado sin responder"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 11,
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 6,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Pedidos esperando ser atendidos",
+      "description": "Pedidos en cola dentro de FreeRADIUS. Crece cuando la base responde lento. Órdenes de corte = Disconnect/CoA de facturación que FreeRADIUS reenvía a R1.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(freeradius_queue_len_auth)",
+          "legendFormat": "logins",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(freeradius_queue_len_acct)",
+          "legendFormat": "accounting",
+          "instant": false,
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(freeradius_queue_len_proxy)",
+          "legendFormat": "órdenes de corte hacia R1",
+          "instant": false,
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": 1
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "logins"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "accounting"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "órdenes de corte hacia R1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 12,
+      "gridPos": {
+        "x": 18,
+        "y": 10,
+        "w": 6,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Logins de abonados por minuto (del log, solo R1)",
+      "description": "Del log de FreeRADIUS, solo los que vienen de R1 (sin pruebas). El motivo de cada rechazo está en el dashboard Abonados. Promedio de 5 min.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "radius:login_ok:rate5m * 60",
+          "legendFormat": "aceptados",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "radius:login_incorrecto:rate5m * 60",
+          "legendFormat": "rechazados",
+          "instant": false,
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": 1
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "aceptados"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rechazados"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 13,
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 12,
+        "h": 6
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Errores de FreeRADIUS al consultar la base, por minuto",
+      "description": "Del log de FreeRADIUS. Con la base caída FreeRADIUS sigue contestando (rechaza a todos) y el indicador de Respondidos no lo ve: esto sí (alerta FreeradiusSinBase).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "radius:sql_errores:rate5m * 60",
+          "legendFormat": "errores",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": 1
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "errores"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 14,
+      "gridPos": {
+        "x": 12,
+        "y": 18,
+        "w": 12,
+        "h": 6
+      }
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "R1 como servidor PPPoE: abonados conectados",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Abonados conectados",
+      "description": "Sesiones PPPoE autenticadas por FreeRADIUS. Una caída brusca de la curva = corte masivo.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(routeros_ppp_active_sessions{ppp_service=\"pppoe\", radius=\"yes\"})",
           "legendFormat": "",
-          "instant": true
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "noValue": "Sin datos de R1"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 16,
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 6,
+        "h": 5
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Sesiones que no pasan por RADIUS",
+      "description": "Tiene que ser 0. Una sesión acá entró con un usuario cargado a mano en R1 (/ppp secret): no queda en el accounting, no se le puede suspender por falta de pago y no la cuenta ningún indicador.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(routeros_ppp_active_sessions{ppp_service=\"pppoe\", radius=\"no\"})",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Ninguna",
+                  "color": "green",
+                  "index": 0
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 17,
+      "gridPos": {
+        "x": 6,
+        "y": 25,
+        "w": 6,
+        "h": 5
+      }
+    },
+    {
+      "type": "stat",
+      "title": "IPs para abonados",
+      "description": "Sin IPs libres un abonado se autentica pero no navega. Alerta al 80 % (pool-pppoe de R1).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(mktxp_ip_pool_used{pool=\"pool-pppoe\"} / mktxp_ip_pool_total{pool=\"pool-pppoe\"})",
+          "legendFormat": "ocupado",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(mktxp_ip_pool_used{pool=\"pool-pppoe\"})",
+          "legendFormat": "en uso",
+          "instant": true,
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(mktxp_ip_pool_total{pool=\"pool-pppoe\"} - mktxp_ip_pool_used{pool=\"pool-pppoe\"})",
+          "legendFormat": "libres",
+          "instant": true,
+          "range": false,
+          "refId": "C"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -755,340 +1631,54 @@
               }
             ]
           },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 1
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 16,
-      "type": "stat",
-      "title": "CPU de R1",
-      "description": "",
-      "gridPos": {
-        "x": 12,
-        "y": 29,
-        "w": 6,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max(mktxp_system_cpu_load)",
-          "legendFormat": "",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 70
-              },
-              {
-                "color": "red",
-                "value": 90
-              }
-            ]
-          },
-          "decimals": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "auto",
-        "justifyMode": "center",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 17,
-      "type": "stat",
-      "title": "Memoria de R1 usada",
-      "description": "",
-      "gridPos": {
-        "x": 18,
-        "y": 29,
-        "w": 6,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "1 - max(mktxp_system_free_memory) / max(mktxp_system_total_memory)",
-          "legendFormat": "",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.8
-              },
-              {
-                "color": "red",
-                "value": 0.9
-              }
-            ]
-          },
-          "decimals": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "auto",
-        "justifyMode": "center",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 18,
-      "type": "timeseries",
-      "title": "Tráfico por abonado",
-      "description": "Cada sesión PPPoE es una interfaz dinámica <pppoe-usuario> en R1. Visto desde R1: rx = lo que sube el abonado. Tope del plan: cola de 50M.",
-      "gridPos": {
-        "x": 0,
-        "y": 34,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "rate(mktxp_interface_rx_byte_total{name=~\"<pppoe-.*>\"}[$__rate_interval]) * 8",
-          "legendFormat": "{{name}} subida"
-        },
-        {
-          "refId": "B",
-          "expr": "-rate(mktxp_interface_tx_byte_total{name=~\"<pppoe-.*>\"}[$__rate_interval]) * 8",
-          "legendFormat": "{{name}} bajada"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bps",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 19,
-      "type": "timeseries",
-      "title": "Tráfico de interfaces de R1",
-      "description": "ether1 = gestión (RADIUS, API), vlan-acceso = abonados, ether2 = LAN1.",
-      "gridPos": {
-        "x": 12,
-        "y": 34,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "rate(mktxp_interface_rx_byte_total{name!~\"<pppoe-.*>|lo\"}[$__rate_interval]) * 8",
-          "legendFormat": "{{name}} rx"
-        },
-        {
-          "refId": "B",
-          "expr": "-rate(mktxp_interface_tx_byte_total{name!~\"<pppoe-.*>|lo\"}[$__rate_interval]) * 8",
-          "legendFormat": "{{name}} tx"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bps",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 20,
-      "type": "timeseries",
-      "title": "Errores y descartes de interfaz",
-      "description": "Errores físicos o de enlace. En VirtualBox deberían ser 0.",
-      "gridPos": {
-        "x": 0,
-        "y": 42,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (name) (increase(mktxp_interface_rx_error_total[$__rate_interval]) + increase(mktxp_interface_tx_error_total[$__rate_interval]))",
-          "legendFormat": "{{name}} errores"
-        },
-        {
-          "refId": "B",
-          "expr": "sum by (name) (increase(mktxp_interface_rx_drop_total[$__rate_interval]) + increase(mktxp_interface_tx_drop_total[$__rate_interval]))",
-          "legendFormat": "{{name}} descartes"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 21,
-      "type": "timeseries",
-      "title": "Cortes de sesión por causa (radacct)",
-      "description": "SLI 3 desglosado. Anormales: Lost-Carrier, Lost-Service, NAS-Error, NAS-Reboot, Port-Error.",
-      "gridPos": {
-        "x": 12,
-        "y": 42,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (causa) (increase(radius_sesiones_cerradas_total{tipo=\"normal\"}[$__rate_interval])) > 0",
-          "legendFormat": "{{causa}}"
-        },
-        {
-          "refId": "B",
-          "expr": "sum by (causa) (increase(radius_sesiones_cerradas_total{tipo!=\"normal\"}[$__rate_interval])) > 0",
-          "legendFormat": "{{causa}} (anormal)"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true
-          },
-          "min": 0
         },
         "overrides": [
           {
             "matcher": {
-              "id": "byRegexp",
-              "options": ".*anormal.*"
+              "id": "byFrameRefID",
+              "options": "B"
             },
             "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
               {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
-                  "fixedColor": "red"
+                  "fixedColor": "transparent"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "transparent"
                 }
               }
             ]
@@ -1096,63 +1686,401 @@
         ]
       },
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         }
+      },
+      "id": 18,
+      "gridPos": {
+        "x": 12,
+        "y": 25,
+        "w": 12,
+        "h": 5
       }
     },
     {
-      "id": 22,
-      "type": "timeseries",
-      "title": "FreeRADIUS → PostgreSQL (del log)",
-      "description": "Errores de rlm_sql en el log de FreeRADIUS (ruler de Loki). Con la base caída FreeRADIUS rechaza a todos y el SLI 1 no lo ve: esto sí.",
+      "id": 19,
+      "type": "row",
+      "title": "Facturación: ¿corren los jobs de suspensión y rehabilitación? (VM db, del log)",
+      "collapsed": false,
       "gridPos": {
-        "x": 16,
-        "y": 22,
-        "w": 8,
-        "h": 6
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 1
       },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "¿Corre rehabilitar? (cada 5 min)",
+      "description": "Sí = corrió en los últimos 15 min. No = el cron no lo está corriendo (o el log no llega: ver Infraestructura). Sale del log de los jobs.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "targets": [
         {
-          "refId": "A",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "radius:sql_errores:rate5m * 60",
-          "legendFormat": "errores rlm_sql / min"
+          "expr": "max(facturacion:corridas:count15m{tarea=\"rehabilitar\"}) > bool 0",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "min": 0,
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "stacking": {
-              "mode": "none"
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Sí",
+                  "color": "green",
+                  "index": 0
+                },
+                "0": {
+                  "text": "No",
+                  "color": "red",
+                  "index": 1
+                }
+              }
             }
-          }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Sin datos del log"
         },
         "overrides": []
       },
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         }
+      },
+      "id": 20,
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Corridas que terminaron con error (15 min)",
+      "description": "Corridas de los jobs que terminaron mal. El detalle está en el dashboard Logs, fila Facturación.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(facturacion:fallas:count15m)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Ninguna",
+                  "color": "green",
+                  "index": 0
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 21,
+      "gridPos": {
+        "x": 6,
+        "y": 31,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Errores de los jobs al usar la base (15 min)",
+      "description": "Errores de psql: la base no contesta, falta un permiso o el esquema facturacion.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(facturacion:sql_errores:count15m)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Ninguno",
+                  "color": "green",
+                  "index": 0
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 22,
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 6,
+        "h": 4
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Órdenes de corte de suspender (24 h)",
+      "description": "Al suspender a alguien con sesión abierta, facturación manda un Disconnect vía FreeRADIUS. Sin confirmar = la sesión puede seguir abierta: cortarla a mano en R1.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(facturacion:disconnect_ok:count24h)",
+          "legendFormat": "confirmadas por R1",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(facturacion:disconnect_fallas:count24h)",
+          "legendFormat": "sin confirmar",
+          "instant": true,
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 23,
+      "gridPos": {
+        "x": 18,
+        "y": 31,
+        "w": 6,
+        "h": 4
       }
     }
   ]
