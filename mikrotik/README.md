@@ -5,8 +5,10 @@
 | `r1.rsc` | R1: NAS / servidor PPPoE `isp` sobre `vlan-acceso`, solo CHAP, RADIUS en `10.10.10.10` |
 | `r1-monitoreo.rsc` | R1: usuario `monitor` (grupo `monitoreo`: `read,api,test`) solo desde `10.10.10.30`, y API limitada a esa IP; logs por syslog al Alloy de `10.10.10.30:1514` |
 | `r2-abonado1.rsc` | R2: abonado1, cliente PPPoE `wan-pppoe` sobre `vlan-acceso` (VLAN 100) |
+| `r3-abonado2.rsc` | R3: abonado2, igual que R2 con el usuario `abonado2` |
+| `abonado-trafico.rsc` | R2 y R3: scheduler `trafico`, 30 s de ping de 1400 bytes por minuto hacia R1 (tráfico de fondo) |
 
-En VirtualBox, `scripts/crear-chr.sh r1|r2` crea el router y `scripts/configurar-chr.sh r1|r2` aplica estos archivos por consola serie (ver README principal). El script completa lo que el export oculta (secret del RADIUS, contraseñas) y resuelve tres diferencias entre un CHR nuevo y un export:
+En VirtualBox, `scripts/crear-chr.sh r1|r2|r3` crea el router y `scripts/configurar-chr.sh r1|r2|r3` aplica estos archivos por consola serie (ver README principal). El script completa lo que el export oculta (secret del RADIUS, contraseñas) y resuelve tres diferencias entre un CHR nuevo y un export:
 
 - **Renames ether2 ↔ ether3:** el export los intercambia con dos `set ... name=`; en un CHR nuevo el primero choca con el nombre existente. Se renombra antes a un nombre temporal.
 - **dhcp-client de fábrica en ether1:** el export no lo menciona (solo describe lo agregado), así que en R1 quedaría pidiendo DHCP en gestión y en R2 el `add` choca. Se borra antes.

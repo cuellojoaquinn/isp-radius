@@ -422,3 +422,26 @@ Probado deteniendo postgres 3 min: **FreeRADIUS no deja de responder, rechaza a 
 - [ ] Logs de los jobs de facturación al journal (`systemd-cat -t facturacion`) para alertar si el job no corre; hoy van a `facturacion/jobs.log`.
 - [ ] `R1Reiniciado`: queda para después (falta ver qué loguea R1 al arrancar, antes de que haya red).
 
+
+## 2026-11-26 — Segundo abonado (R3) y tráfico de fondo
+
+Repaso de la consigna contra el repo: todo lo mínimo estaba, salvo **"al menos dos abonados que se conectan por PPPoE y generan tráfico"**. abonado2 estaba en la base y pasaba `radtest`, pero ningún equipo se conectaba con ese usuario.
+
+### Decisiones
+
+- **R3 = abonado2, otro CHR igual a R2** (`mikrotik/r3-abonado2.rsc`, roles `r3` en `crear-chr.sh` y `configurar-chr.sh`). Descartado: un cliente `pppd` en una VM Linux. Sería más liviano, pero R2 ya está probado y con el mismo export y los mismos scripts no hay nada nuevo que explicar ni depurar.
+- **Tráfico de fondo con un scheduler en cada abonado** (`mikrotik/abonado-trafico.rsc`): 30 s de cada minuto, ping de 1400 bytes cada 50 ms a `100.64.0.1` (~220 kbit/s por sentido). Así el Interim siempre trae bytes nuevos y "Tráfico por abonado" tiene curvas sin que nadie lo lance a mano.
+  - Descartado `/tool bandwidth-test` programado: necesita un usuario de R1 guardado en el abonado (credenciales del NAS en el equipo del cliente). Queda para lanzarlo a mano en la demo y mostrar el tope de 50M de la cola.
+
+### Prueba (lab paralelo en QEMU + Docker)
+
+Probado en una máquina sin VirtualBox, con un lab paralelo: PostgreSQL y FreeRADIUS con el compose y las configs del repo, en una red Docker `10.10.10.0/24` (la base en `.20` y FreeRADIUS en `.10`, para que `pg_hba` y `clients.conf` valgan tal cual), y R1, R2 y R3 como CHR 7.20.4 en QEMU, configurados con `configurar-chr.sh` sin cambios. Resultado:
+
+- `/ppp active print` en R1: `R abonado1 100.64.0.100` y `R abonado2 100.64.0.99` (las dos autenticadas por RADIUS).
+- `/queue simple`: dos colas dinámicas `max-limit=50M/50M`, ~840 KB por sentido en el primer minuto de scheduler.
+- `radacct`: dos sesiones abiertas; al primer Interim (5 min) cada una con ~3,3 MB de entrada y salida.
+
+### Pendientes
+
+- [ ] Crear y configurar R3 en el lab real (`scripts/crear-chr.sh r3 && scripts/configurar-chr.sh r3`), pegar `mikrotik/abonado-trafico.rsc` en el R2 existente y ver el tráfico de las dos en Grafana.
+- [ ] Contar en la defensa cómo usamos la IA: qué le preguntamos, qué respondió mal y cómo nos dimos cuenta (lo pide el enunciado).
