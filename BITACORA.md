@@ -298,9 +298,9 @@ Cada reconexión de abonado1 sumó 3 requests y 3 accepts: Stop de la sesión vi
 
 ### Pendientes
 
-- [ ] Canal de aviso (Telegram) y, a futuro, webhook del agente de diagnóstico.
+- [x] Canal de aviso (Telegram) y webhook del agente de diagnóstico (26/11).
 - [x] Sistema de logs centralizado (Loki) con las mismas etiquetas `instance`/`service` (ver 23-24/11, logs).
-- [ ] Borrar las sesiones `prueba-N` de `radacct` antes de la defensa (hace un salto falso de 24 h en el SLI 3).
+- [x] Borrar las sesiones `prueba-N` de `radacct` (26/11).
 
 ## 2026-11-23 — Modelo de datos de facturación (esquema `facturacion`)
 
@@ -418,9 +418,9 @@ Probado deteniendo postgres 3 min: **FreeRADIUS no deja de responder, rechaza a 
 
 ### Pendientes
 
-- [ ] Mínimo de tráfico en las alertas de tasa de quema (o silencios en mantenimiento).
+- [x] Mínimo de tráfico en las alertas de tasa de quema: al menos 3 fallas (26/11).
 - [x] Logs de los jobs de facturación al journal (`systemd-cat`), en Loki y en el dashboard Logs (26/11). Falta: alertar si el job no corre.
-- [ ] `R1Reiniciado`: queda para después (falta ver qué loguea R1 al arrancar, antes de que haya red).
+- [x] `R1Reiniciado` (26/11): sale de `mktxp_system_uptime`, no del log (R1 loguea el arranque antes de tener red).
 
 ## 2026-11-24 — Mapa de dependencias
 
@@ -464,7 +464,7 @@ Probado en una máquina sin VirtualBox, con un lab paralelo: PostgreSQL y FreeRA
 
 ### Pendientes
 
-- [ ] Crear y configurar R3 en el lab real (`scripts/crear-chr.sh r3 && scripts/configurar-chr.sh r3`), pegar `mikrotik/abonado-trafico.rsc` en el R2 existente y ver el tráfico de las dos en Grafana.
+- [x] R3 creado y configurado en el lab real y el scheduler de tráfico cargado en R2 (26/11): abonado1 y abonado2 conectados por RADIUS.
 - [ ] Contar en la defensa cómo usamos la IA: qué le preguntamos, qué respondió mal y cómo nos dimos cuenta (lo pide el enunciado).
 
 ## 2026-11-26 — Logs de los jobs de facturación
@@ -524,4 +524,53 @@ Probado en una máquina sin VirtualBox, con un lab paralelo: PostgreSQL y FreeRA
 - **La etiqueta `level` de los contenedores no es confiable.** Docker manda stdout como info y stderr como error, y PostgreSQL escribe todo a stderr: en Logs, un "checkpoint complete" aparece como error. En los jobs de facturación sí es confiable, porque usan `systemd-cat` con prioridad explícita.
 - **Seguridad (para Joaquín):** `radpostauth.pass` se guarda en todas las filas (8 en texto claro por PAP, el resto CHAP en hexa) y el usuario `grafana` tiene SELECT sobre `radpostauth`. Ningún dashboard lee esa columna. Propuesta: no guardarla (query de post-auth sin `pass`) o dar SELECT por columna.
 - **Node Graph ignora la configuración de campos del panel:** los dos decimales de los círculos y los nombres de la leyenda no se pueden cambiar. Las tablas de abajo del mapa tienen el formato correcto.
+
+## 2026-11-26 — Lab completo, avisos y agente de diagnóstico
+
+Objetivo: que en la demo se pueda probar cada parte (guía en `DEMO.md`).
+
+### Lab
+- **R3 (abonado2)** creado con los scripts y conectado por RADIUS. **R2** recibió el scheduler de tráfico de fondo.
+- **Facturación en nuestra base**, sin borrar nada: `db/init/04` a `07` corridos a mano, más los grupos `moroso`/`baja` (`radgroupcheck`) y `plan-10m`, que faltaban porque la base es anterior a esos scripts. La factura vencida de los datos de prueba se marcó pagada, para que el cron no suspenda a abonado1 antes de la demo. La deuda se crea a pedido con `scripts/demo/deuda.sh`, porque el menú no puede emitir una factura ya vencida (`CHECK` vencimiento >= emisión).
+- **Cron instalado** en la VM db (`REPO=/vagrant`). El nodo Facturación del mapa pasó a verde.
+- Se borraron las 4 sesiones `prueba-N`.
+
+### Hallazgo: las órdenes de corte no llegaban
+- La primera suspensión de prueba dejó a abonado2 moroso en la base pero conectado: "ATENCIÓN: no se pudo cortar".
+- **Causa:** a nuestro R1 le faltaba `/radius incoming accept=yes`. Estaba en `mikrotik/README.md` pero no en `r1.rsc`, así que un R1 creado con los scripts nunca lo tenía.
+- **Efecto encadenado:** como R1 no contestaba, FreeRADIUS marcó el home server `r1-coa` como caído y respondía `Disconnect-NAK` con `Error-Cause = Proxy-Request-Not-Routable` aunque R1 ya aceptara. Se arregló con `docker restart freeradius`.
+- Se agregó a `r1.rsc`. Probado el ciclo completo: deuda → suspender → Disconnect-ACK → R3 rechazado → pago → rehabilitar → reconecta.
+- De paso se verificó `timeout=3s` en `/radius` de R1, que el análisis de escalabilidad marcaba como dato a confirmar.
+
+### Seguridad
+- `radpostauth.pass` guardaba la contraseña de cada intento (en claro con PAP) y la podían leer `grafana` y `exporter`.
+- `db/init/08`: un trigger la descarta, se borraron las 76 existentes y esos dos usuarios leen solo las otras columnas. `test.sh` sigue 9/9.
+
+### Alertas de eventos (`eventos.yml`, todas ticket)
+- `R1Reiniciado` y `VMReiniciada`: 15 min después de arrancar.
+- `FacturacionNoCorre`: `rehabilitar` sin corridas en 15 min, con Alloy de db arriba (si no, no sabemos).
+- `FacturacionFalla` y `OrdenDeCorteSinConfirmar`.
+- No hay "suspender no corrió en 24 h": el lab se prende de día y sonaría en cada demo. Si el cron muere, lo ve `FacturacionNoCorre`.
+
+### Telegram
+- *page* → Telegram + agente; *ticket* → Telegram.
+- Alertmanager 0.28 lee el token desde un archivo pero el chat no (`chat_id_file` no existe). Por eso `grafana/alertmanager/arrancar.sh` arma la config al arrancar: si están los dos secretos, descomenta las líneas `#TG` y pone el chat. Sin secretos, la config es la de siempre.
+- Los secretos los carga una persona con `scripts/configurar-avisos.sh`, que detecta el chat con `getUpdates` y manda un mensaje de prueba.
+
+### Agente de diagnóstico (`diagnostico/`)
+- **Dónde corre:** contenedor en la VM grafana, porque las herramientas tienen que llegar a la red interna del lab.
+- **Cómo:** API de Claude con el tool runner del SDK oficial (`anthropic` 2.14.0), modelo `claude-opus-5-5` con effort `high`, *fallback* del lado del servidor si el modelo rechaza el pedido, y tope de 12 iteraciones por diagnóstico (costo acotado).
+  - Descartado Managed Agents: las herramientas son consultas a la red del lab y tendrían que ejecutarse igual de este lado.
+- **Herramientas de solo lectura:** estado del mapa, alertas activas, Prometheus (ahora e historia) y Loki. No puede reiniciar ni cambiar nada: propone qué hacer.
+- **Formato de respuesta:** qué pasa, causa probable con evidencia, qué hacer y confianza. Máximo unas 15 líneas, porque va a Telegram.
+- **Funcionamiento:** recibe las alertas *page* por webhook, contesta 202 enseguida y diagnostica en segundo plano. No repite el mismo grupo en 30 min. El diagnóstico va al log (Loki) y a Telegram.
+- **Probado sin la clave:** la alerta de prueba llega al agente y las herramientas funcionan contra el lab. Falta probarlo con la clave real (`scripts/configurar-avisos.sh`).
+
+### Escalabilidad
+- Análisis y plan de pruebas de carga en `docs/escalabilidad.md` (tarea en paralelo).
+- Conclusiones principales:
+  - el límite hoy es R1 (91 IPs);
+  - el SLI 1 a escala diluye las fallas de autenticación entre el accounting;
+  - las consultas del exporter recorren tablas que crecen sin límite;
+  - `radpostauth` no se limpia nunca.
 

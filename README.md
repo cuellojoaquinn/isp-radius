@@ -4,6 +4,8 @@ ISP de laboratorio: los abonados se conectan por **PPPoE** a un **MikroTik (R1)*
 
 - Topología y flujos: [`topologia.html`](topologia.html)
 - Qué investigamos, decidimos y qué falló: [`BITACORA.md`](BITACORA.md)
+- Cómo mostrar cada parte en la demo: [`DEMO.md`](DEMO.md)
+- Escalabilidad y plan de pruebas de carga: [`docs/escalabilidad.md`](docs/escalabilidad.md)
 
 ## Estructura
 
@@ -14,13 +16,17 @@ ISP de laboratorio: los abonados se conectan por **PPPoE** a un **MikroTik (R1)*
 │   ├── test.sh              prueba automática del lab (corre al levantar freeradius)
 │   ├── crear-chr.sh         crea R1, R2 o R3 (MikroTik CHR) en VirtualBox
 │   ├── configurar-chr.sh    aplica mikrotik/*.rsc por consola serie
-│   └── chr-console.py       ejecuta comandos de RouterOS por la consola serie
+│   ├── chr-console.py       ejecuta comandos de RouterOS por la consola serie
+│   ├── configurar-avisos.sh pide el token de Telegram y la clave del agente (sin mostrarlos)
+│   └── demo/                deuda vencida y fuerza bruta, para la demo (DEMO.md)
 ├── freeradius/              compose, clients.conf, módulo sql, virtual server status, exporter
 ├── db/                      compose, pg_hba.conf, init/ (esquema, usuarios, datos), exporter/queries.yml
 ├── grafana/                 monitoreo: Prometheus (reglas y tests), Alertmanager, Grafana
 │   │                        (datasources y dashboards), mktxp, r1-exporter, Loki (logs y
 │   │                        sus reglas) y el syslog de R1
 ├── alloy/                   recolector de logs (Alloy), config compartida por las tres VMs
+├── diagnostico/             agente de diagnóstico con IA (API de Claude), corre en la VM grafana
+├── facturacion/             scripts de alta, baja, planes, suspensión y rehabilitación (cron)
 └── mikrotik/                exports de R1, R2 (abonado1) y R3 (abonado2), tráfico de prueba, monitoreo de R1
 ```
 
@@ -161,7 +167,12 @@ R1 ─syslog UDP 1514─► Alloy de la VM grafana ─────────�
 - Reglas sobre los logs (`grafana/loki/rules/fake/radius.yml`): métricas `radius:sql_errores`, `radius:login_ok`, `radius:login_incorrecto`; alertas `FreeradiusSinBase` (page) y `PosibleFuerzaBruta` (ticket).
 - **Punto ciego del SLI 1 que cubren los logs:** con PostgreSQL caído FreeRADIUS no deja de responder, rechaza a todos (`Invalid user`), y para el SLI 1 un reject es una respuesta. Solo el log (`Error: rlm_sql ...`) lo muestra.
 
-**Alertas** (`grafana/prometheus/rules/` y `grafana/loki/rules/`): por síntoma con tasa de quema multiventana (`slo.yml`), saturación al 80 % (`saturacion.yml`) y monitoreo ciego (`infraestructura.yml`). Cada una tiene un `runbook` con el diagnóstico. Todavía sin canal de aviso: se ven en Alertmanager y en Grafana.
+**Alertas** (`grafana/prometheus/rules/` y `grafana/loki/rules/`): por síntoma con tasa de quema multiventana (`slo.yml`), saturación al 80 % (`saturacion.yml`) y monitoreo ciego (`infraestructura.yml`). Cada una tiene un `runbook` con el diagnóstico. Además, eventos (`eventos.yml`, todos ticket): R1 o una VM reiniciada, jobs de facturación que no corren o fallan, orden de corte sin confirmar. Las alertas *page* exigen al menos 3 pedidos fallidos (con el tráfico del lab, uno solo no es un incidente).
+
+**Avisos** (`grafana/alertmanager/`):
+- *page* → **Telegram** y el **agente de diagnóstico**; *ticket* → Telegram. El mensaje trae el resumen y el runbook.
+- Se configura una vez con `scripts/configurar-avisos.sh`, que pide el token del bot y la `ANTHROPIC_API_KEY` sin mostrarlos y los guarda en archivos ignorados por git. Sin eso, las alertas se ven en Alertmanager (http://localhost:9093) y en Grafana.
+- **Agente de diagnóstico** (`diagnostico/`, contenedor en la VM grafana): con la API de Claude, investiga cada alerta urgente con herramientas de **solo lectura** (mapa, alertas, Prometheus, Loki) y manda un diagnóstico corto (qué pasa, causa con evidencia, qué hacer, confianza) a Telegram y a su log. También se le puede preguntar a mano: `vagrant ssh grafana -c 'docker exec diagnostico python agente.py "pregunta"'`.
 
 Tests de las reglas con series sintéticas:
 
@@ -178,8 +189,9 @@ En VMs creadas antes de los logs: `vagrant provision <vm> --provision-with base`
 
 - Los scripts de `db/init/` corren **solo con el volumen vacío**. Para reinicializar: `docker-compose down -v` (borra los datos).
 - FreeRADIUS corre **sin `-X`**: el log tiene una línea por login (`Login OK` / `Login incorrect` con el motivo) y los errores, sin contraseñas (`freeradius/radiusd.conf`, sección `log`). Se ve con `docker logs freeradius` o en Grafana (Loki). Para depurar un problema puntual con el detalle de cada paquete, en la VM freeradius: `docker-compose stop freeradius && docker-compose run --rm --service-ports freeradius -X` (Ctrl+C y `docker-compose up -d freeradius` para volver). Ojo: `-X` imprime la contraseña de la base y los secrets.
-- `db/init/04-exporter.sh` crea el usuario `exporter`. En una base que ya existía, aplicarlo a mano: `vagrant ssh db -c "docker exec -i postgres bash < /vagrant/db/init/04-exporter.sh"`.
-- En `radacct` hay sesiones de prueba (`Acct-Session-Id` `prueba-N`) generadas con `radclient` el 20/11. Borrarlas hace bajar contadores del SLI 3 y Prometheus lo toma como reinicio (salto falso de 24 h).
+- `db/init/04-exporter.sh` crea el usuario `exporter`. En una base que ya existía, aplicarlo a mano: `vagrant ssh db -c "docker exec -i postgres bash < /vagrant/db/init/04-exporter.sh"`. Lo mismo con los scripts de facturación (`04` a `07`, el `05` necesita `FACTURACION_DB_PASSWORD` de `db/.env`) y con `08-radpostauth-sin-password.sql`.
+- Los jobs de facturación se instalan en la VM db con `sed "s#^REPO=.*#REPO=/vagrant#" /vagrant/facturacion/crontab.txt | crontab -`.
+- Las sesiones de prueba de `radacct` (`prueba-N`, generadas con `radclient` el 20/11) se borraron el 26/11. Los contadores del SLI 3 bajaron y Prometheus lo tomó como reinicio: hubo un salto falso en los cortes durante 24 h.
 
 ## Facturación (suspensión por falta de pago)
 
