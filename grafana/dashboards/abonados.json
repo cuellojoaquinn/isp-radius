@@ -10,10 +10,10 @@
   "editable": true,
   "graphTooltip": 1,
   "time": {
-    "from": "now-24h",
+    "from": "now-3h",
     "to": "now"
   },
-  "refresh": "30s",
+  "refresh": "10s",
   "timezone": "browser",
   "links": [
     {
@@ -83,7 +83,7 @@
         },
         "query": "SELECT DISTINCT username FROM radusergroup ORDER BY 1",
         "definition": "SELECT DISTINCT username FROM radusergroup ORDER BY 1",
-        "refresh": 1,
+        "refresh": 2,
         "includeAll": false,
         "multi": false,
         "sort": 1,
@@ -687,7 +687,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum(count_over_time({container=\"freeradius\"} |= \"Login OK\" |= \"[$abonado]\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"freeradius\"} |= \"Login OK\" |= \"[$abonado]\" [$__range])) or vector(0)",
           "legendFormat": "aceptados",
           "queryType": "instant",
           "refId": "A"
@@ -697,7 +697,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum(count_over_time({container=\"freeradius\"} |= \"Login incorrect\" |= \"[$abonado]\" [$__range]))",
+          "expr": "sum(count_over_time({container=\"freeradius\"} |= \"Login incorrect\" |= \"[$abonado]\" [$__range])) or vector(0)",
           "legendFormat": "rechazados",
           "queryType": "instant",
           "refId": "B"

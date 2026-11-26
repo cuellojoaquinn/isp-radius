@@ -19,6 +19,52 @@ Cada parte se puede mostrar sola: qué se muestra, cómo se provoca, qué mirar 
    - **R1Reiniciado**: R1 arrancó hace menos de 15 min.
    - **VMReiniciada**: lo mismo para cada VM.
 
+## Demo en vivo: 12 abonados conectándose y navegando (guion de ~15 min)
+
+`scripts/demo/abonados.sh` agrega 10 abonados de demo (abonado3 a abonado12):
+- se dan de **alta por facturación**, con las mismas funciones que usa el menú;
+- se conectan por PPPoE desde R2 y R3, varias conexiones por router;
+- generan tráfico con tres perfiles: **liviano** (3, 6, 9, 12), **navegación** en ráfagas (4, 7, 10) y **streaming** constante (5, 8, 11). abonado4, abonado8 y abonado12 tienen el plan de 10 megas.
+
+**Preparación (una hora antes, para que los gráficos tengan historia):**
+```bash
+scripts/demo/abonados.sh alta          # 10 clientes nuevos en facturación y RADIUS
+scripts/demo/abonados.sh conectar      # sus conexiones PPPoE en R2 y R3
+scripts/demo/abonados.sh trafico on    # tráfico en tiempo real
+scripts/demo/abonados.sh estado        # tienen que aparecer 12
+```
+Pantalla: **Componentes**, con la fila *En vivo* arriba y refresco cada 10 s. En otra pestaña, **Abonados**.
+
+| Min | Acto | Comando | Qué se ve |
+|---|---|---|---|
+| 0 | Punto de partida | — | Componentes: 12 abonados conectados y la lista de *Logins en vivo*. Mapa: "12 sesiones" |
+| 2 | Se conectan los clientes | `scripts/demo/abonados.sh conectar` (vuelve a crear las 10 conexiones) | En *Logins en vivo* entran los 10 `Login OK` en segundos, cada uno con su usuario y la MAC de su router. Para mostrar el alta desde cero, ver la sección *Alta de un cliente* |
+| 5 | Tráfico por cliente | — | Abonados: abonado5 (streaming, ~100 kbit/s constante), abonado4 (ráfagas) y abonado3 (casi nada). El historial de sesiones. Infraestructura: tráfico de R1 hacia abonados |
+| 7 | Contraseña equivocada | `scripts/demo/fuerza-bruta.sh 3` | Abonados (abonado2): `Login incorrect` con el motivo. *Logins en vivo* se llena de rechazos. Si supera 20 en 5 min, suena la alerta PosibleFuerzaBruta |
+| 10 | Un cliente no paga | `scripts/demo/deuda.sh abonado5` y después `suspender` (sección 3) | La curva de abonado5 se corta en vivo y la sesión termina con "facturación lo cortó". Con pago y `rehabilitar`, vuelve |
+| 12 | Se cae la base | Sección 5 | Mapa en rojo. Los conectados siguen navegando: las curvas no se cortan. Alerta urgente y diagnóstico por Telegram |
+| 14 | Corte de luz en R1 | `VBoxManage controlvm isp-radius_r1 reset` | Los 12 abonados caen a 0 y se reconectan todos juntos: tormenta de logins en *Logins en vivo*. Alerta R1Reiniciado |
+| 15 | Cierre | — | Servicio: indicadores con muestra real, cortes por causa, alertas que sonaron |
+
+Lo de la demo **queda guardado**: las conexiones y el tráfico están en R2 y R3, y los clientes en la base. Al prender el lab otro día, los 12 abonados se conectan solos y el tráfico arranca solo.
+
+**Volver al estado normal:** `scripts/demo/abonados.sh trafico off` corta el tráfico y reactiva el de fondo de abonado1 y abonado2. Para sacar todo lo de la demo: `scripts/demo/abonados.sh borrar`, que deja las sesiones en el historial.
+
+**Límite del lab:** la licencia gratuita de los routers virtuales limita cada interfaz a 1 Mbit/s en total, y todos los abonados de un router comparten una. Los perfiles suman unos 500 kbit/s. Más tráfico satura el enlace y las sesiones se caen ("peer is not responding").
+
+### Alta de un cliente nuevo en vivo
+
+```bash
+scripts/demo/abonados.sh alta 11       # suma abonado13 (los 10 anteriores ya existen y no se tocan)
+scripts/demo/abonados.sh conectar 11   # su conexión en R3
+scripts/demo/abonados.sh trafico on 11
+```
+**Qué se ve:**
+- En *Logins en vivo* aparece `Login OK: [abonado13]`.
+- *Abonados conectados* pasa a 13.
+- En **Abonados**, abonado13 ya figura en la lista, con su plan.
+- **Lado de facturación:** el menú (`vagrant ssh db -t -c /vagrant/facturacion/menu.sh`, opción 1) muestra al "Cliente demo 13" con su servicio activo. El alta se puede hacer también desde el menú (opciones 5 y 6), pero entonces hay que cargar la conexión en el router a mano.
+
 ## 1. Recorrido: un dashboard por pregunta (3 min)
 
 | Dashboard | Qué mostrar |

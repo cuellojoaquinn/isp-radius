@@ -10,10 +10,10 @@
   "editable": true,
   "graphTooltip": 1,
   "time": {
-    "from": "now-3h",
+    "from": "now-1h",
     "to": "now"
   },
-  "refresh": "30s",
+  "refresh": "10s",
   "timezone": "browser",
   "links": [
     {
@@ -81,11 +81,127 @@
     {
       "id": 1,
       "type": "row",
-      "title": "R1 pregunta a FreeRADIUS: ¿le contestan? (lo que ve R1)",
+      "title": "En vivo: abonados conectados y cada login",
       "collapsed": false,
       "gridPos": {
         "x": 0,
         "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Abonados conectados",
+      "description": "Sesiones PPPoE autenticadas por FreeRADIUS. Una caída brusca de la curva = corte masivo.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(routeros_ppp_active_sessions{ppp_service=\"pppoe\", radius=\"yes\"})",
+          "legendFormat": "",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "noValue": "Sin datos de R1"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "area",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 2,
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 6,
+        "h": 9
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Logins en vivo",
+      "description": "Cada intento de login que decide FreeRADIUS, el más nuevo arriba: Login OK, o Login incorrect con el motivo. [abonadoN] = usuario, client r1 = vino de R1 (dockernet = prueba), cli = MAC del equipo. Se actualiza cada 10 s.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{container=\"freeradius\"} |= \"Auth:\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showCommonLabels": false
+      },
+      "id": 3,
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 18,
+        "h": 9
+      }
+    },
+    {
+      "id": 4,
+      "type": "row",
+      "title": "R1 pregunta a FreeRADIUS: ¿le contestan? (lo que ve R1)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 10,
         "w": 24,
         "h": 1
       },
@@ -229,10 +345,10 @@
           "sort": "desc"
         }
       },
-      "id": 2,
+      "id": 5,
       "gridPos": {
         "x": 0,
-        "y": 1,
+        "y": 11,
         "w": 9,
         "h": 8
       }
@@ -323,10 +439,10 @@
           "sort": "desc"
         }
       },
-      "id": 3,
+      "id": 6,
       "gridPos": {
         "x": 9,
-        "y": 1,
+        "y": 11,
         "w": 5,
         "h": 8
       }
@@ -416,10 +532,10 @@
           "sort": "desc"
         }
       },
-      "id": 4,
+      "id": 7,
       "gridPos": {
         "x": 14,
-        "y": 1,
+        "y": 11,
         "w": 5,
         "h": 8
       }
@@ -501,10 +617,10 @@
           "values": false
         }
       },
-      "id": 5,
+      "id": 8,
       "gridPos": {
         "x": 19,
-        "y": 1,
+        "y": 11,
         "w": 5,
         "h": 4
       }
@@ -574,22 +690,22 @@
           "values": false
         }
       },
-      "id": 6,
+      "id": 9,
       "gridPos": {
         "x": 19,
-        "y": 5,
+        "y": 15,
         "w": 5,
         "h": 4
       }
     },
     {
-      "id": 7,
+      "id": 10,
       "type": "row",
       "title": "FreeRADIUS: ¿procesa lo que le llega? (lo que ve el servidor)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 19,
         "w": 24,
         "h": 1
       },
@@ -672,10 +788,10 @@
           "values": false
         }
       },
-      "id": 8,
+      "id": 11,
       "gridPos": {
         "x": 0,
-        "y": 10,
+        "y": 20,
         "w": 5,
         "h": 4
       }
@@ -748,10 +864,10 @@
           "values": false
         }
       },
-      "id": 9,
+      "id": 12,
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 24,
         "w": 5,
         "h": 4
       }
@@ -868,10 +984,10 @@
           "sort": "desc"
         }
       },
-      "id": 10,
+      "id": 13,
       "gridPos": {
         "x": 5,
-        "y": 10,
+        "y": 20,
         "w": 7,
         "h": 8
       }
@@ -1040,10 +1156,10 @@
           "sort": "desc"
         }
       },
-      "id": 11,
+      "id": 14,
       "gridPos": {
         "x": 12,
-        "y": 10,
+        "y": 20,
         "w": 6,
         "h": 8
       }
@@ -1186,10 +1302,10 @@
           "sort": "desc"
         }
       },
-      "id": 12,
+      "id": 15,
       "gridPos": {
         "x": 18,
-        "y": 10,
+        "y": 20,
         "w": 6,
         "h": 8
       }
@@ -1306,10 +1422,10 @@
           "sort": "desc"
         }
       },
-      "id": 13,
+      "id": 16,
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 28,
         "w": 12,
         "h": 6
       }
@@ -1400,92 +1516,26 @@
           "sort": "desc"
         }
       },
-      "id": 14,
+      "id": 17,
       "gridPos": {
         "x": 12,
-        "y": 18,
+        "y": 28,
         "w": 12,
         "h": 6
       }
     },
     {
-      "id": 15,
+      "id": 18,
       "type": "row",
       "title": "R1 como servidor PPPoE: abonados conectados",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 34,
         "w": 24,
         "h": 1
       },
       "panels": []
-    },
-    {
-      "type": "stat",
-      "title": "Abonados conectados",
-      "description": "Sesiones PPPoE autenticadas por FreeRADIUS. Una caída brusca de la curva = corte masivo.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(routeros_ppp_active_sessions{ppp_service=\"pppoe\", radius=\"yes\"})",
-          "legendFormat": "",
-          "instant": false,
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          },
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 0,
-          "noValue": "Sin datos de R1"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "none",
-        "graphMode": "area",
-        "textMode": "auto",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "id": 16,
-      "gridPos": {
-        "x": 0,
-        "y": 25,
-        "w": 6,
-        "h": 5
-      }
     },
     {
       "type": "stat",
@@ -1559,10 +1609,10 @@
           "values": false
         }
       },
-      "id": 17,
+      "id": 19,
       "gridPos": {
         "x": 6,
-        "y": 25,
+        "y": 35,
         "w": 6,
         "h": 5
       }
@@ -1701,22 +1751,22 @@
           "values": false
         }
       },
-      "id": 18,
+      "id": 20,
       "gridPos": {
-        "x": 12,
-        "y": 25,
-        "w": 12,
+        "x": 8,
+        "y": 35,
+        "w": 16,
         "h": 5
       }
     },
     {
-      "id": 19,
+      "id": 21,
       "type": "row",
       "title": "Facturación: ¿corren los jobs de suspensión y rehabilitación? (VM db, del log)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 40,
         "w": 24,
         "h": 1
       },
@@ -1799,10 +1849,10 @@
           "values": false
         }
       },
-      "id": 20,
+      "id": 22,
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 41,
         "w": 6,
         "h": 4
       }
@@ -1879,10 +1929,10 @@
           "values": false
         }
       },
-      "id": 21,
+      "id": 23,
       "gridPos": {
         "x": 6,
-        "y": 31,
+        "y": 41,
         "w": 6,
         "h": 4
       }
@@ -1959,10 +2009,10 @@
           "values": false
         }
       },
-      "id": 22,
+      "id": 24,
       "gridPos": {
         "x": 12,
-        "y": 31,
+        "y": 41,
         "w": 6,
         "h": 4
       }
@@ -2075,10 +2125,10 @@
           "values": false
         }
       },
-      "id": 23,
+      "id": 25,
       "gridPos": {
         "x": 18,
-        "y": 31,
+        "y": 41,
         "w": 6,
         "h": 4
       }

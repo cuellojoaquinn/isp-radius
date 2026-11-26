@@ -18,7 +18,7 @@ ISP de laboratorio: los abonados se conectan por **PPPoE** a un **MikroTik (R1)*
 │   ├── configurar-chr.sh    aplica mikrotik/*.rsc por consola serie
 │   ├── chr-console.py       ejecuta comandos de RouterOS por la consola serie
 │   ├── configurar-avisos.sh pide el token de Telegram y la clave del agente (sin mostrarlos)
-│   └── demo/                deuda vencida y fuerza bruta, para la demo (DEMO.md)
+│   └── demo/                abonados de demo con tráfico, deuda vencida y fuerza bruta (DEMO.md)
 ├── freeradius/              compose, clients.conf, módulo sql, virtual server status, exporter
 ├── db/                      compose, pg_hba.conf, init/ (esquema, usuarios, datos), exporter/queries.yml
 ├── grafana/                 monitoreo: Prometheus (reglas y tests), Alertmanager, Grafana
