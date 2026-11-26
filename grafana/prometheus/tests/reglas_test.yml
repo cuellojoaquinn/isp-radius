@@ -49,6 +49,33 @@ tests:
                    o la base: radius:sql_errores:rate5m > 0 (sale del log, ver FreeradiusSinBase); ¿PostgreSQL arriba? (pg_up).
                 Los abonados ya conectados siguen funcionando; los nuevos no entran (bitácora 19/11).
 
+  # 1b. Un solo pedido perdido (un contenedor que se reinicia): con el tráfico del lab
+  #     la proporción supera 14,4 en 1 h y en 5 min, pero 1 falla no es un incidente:
+  #     las alertas exigen al menos 3 (bitácora 26/11).
+  - name: un pedido perdido -> sin page
+    interval: 1m
+    input_series:
+      - series: 'routeros_radius_requests_total{radius="10.10.10.10"}'
+        values: '0+1x60'
+      - series: 'routeros_radius_accepts_total{radius="10.10.10.10"}'
+        values: '0+1x29 29+1x30'
+      - series: 'routeros_radius_rejects_total{radius="10.10.10.10"}'
+        values: '0x60'
+      - series: 'routeros_radius_resends_total{radius="10.10.10.10"}'
+        values: '0x60'
+    promql_expr_test:
+      # Sin el mínimo, habría disparado: las dos ventanas superan 14,4 y la falla es 1
+      - expr: count(slo:radius_auth_errores:ratio_rate5m > (14.4 * 0.001) and on() slo:radius_auth_errores:ratio_rate1h > (14.4 * 0.001))
+        eval_time: 33m
+        exp_samples:
+          - { labels: '{}', value: 1 }
+      - expr: round(slo:radius_auth_fallas:increase1h)
+        eval_time: 33m
+        exp_samples:
+          - { labels: '{}', value: 1 }
+    alert_rule_test:
+      - { eval_time: 33m, alertname: AutenticacionQuemaRapida, exp_alerts: [] }
+
   # 2. Servicio sano: todo pedido tiene respuesta (accepts + rejects = requests).
   - name: servicio sano -> sin alertas
     interval: 1m

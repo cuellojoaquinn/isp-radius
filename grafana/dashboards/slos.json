@@ -1,48 +1,74 @@
 {
   "uid": "slos",
-  "title": "Servicio RADIUS (SLOs)",
-  "description": "Síntomas: los 4 SLIs de la bitácora (18/11), presupuesto de error y tasa de quema. Si algo está rojo acá, buscar la causa en Componentes.",
+  "title": "Servicio",
+  "description": "¿El servicio anda bien para los abonados? Los 4 indicadores (SLI) contra sus objetivos (SLO), las alertas, el presupuesto de error y cómo terminan las sesiones. Si algo está mal acá, la causa se busca en Mapa y Componentes.",
   "tags": [
     "isp-radius",
     "sintomas"
   ],
-  "timezone": "browser",
   "schemaVersion": 39,
-  "refresh": "30s",
+  "editable": true,
+  "graphTooltip": 1,
   "time": {
-    "from": "now-3h",
+    "from": "now-24h",
     "to": "now"
   },
-  "editable": false,
+  "refresh": "30s",
+  "timezone": "browser",
   "links": [
-    { "title": "Mapa", "type": "link", "url": "/d/mapa", "icon": "apps", "keepTime": true },
+    {
+      "title": "Mapa",
+      "type": "link",
+      "url": "/d/mapa",
+      "icon": "apps",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
+    },
+    {
+      "title": "Abonados",
+      "type": "link",
+      "url": "/d/abonados",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
+    },
     {
       "title": "Componentes",
       "type": "link",
       "url": "/d/componentes",
       "icon": "dashboard",
-      "keepTime": true
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     },
     {
       "title": "PostgreSQL",
       "type": "link",
       "url": "/d/postgresql",
       "icon": "dashboard",
-      "keepTime": true
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     },
     {
       "title": "Infraestructura",
       "type": "link",
       "url": "/d/infraestructura",
       "icon": "dashboard",
-      "keepTime": true
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     },
     {
       "title": "Logs",
       "type": "link",
       "url": "/d/logs",
-      "icon": "doc",
-      "keepTime": true
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false
     }
   ],
   "templating": {
@@ -55,7 +81,7 @@
     {
       "id": 1,
       "type": "row",
-      "title": "Indicadores (SLI) contra objetivos (SLO) — vista de síntomas",
+      "title": "¿El servicio anda bien para los abonados? (indicadores contra sus objetivos)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -66,31 +92,52 @@
       "panels": []
     },
     {
-      "id": 2,
       "type": "stat",
-      "title": "SLI 1 · Disponibilidad (1 h)",
-      "description": "(accepts + rejects) / requests de /radius monitor en R1. SLO 99,9 %. Un reject cuenta como bueno: rechazar una contraseña mal escrita es la respuesta correcta.",
-      "gridPos": {
-        "x": 0,
-        "y": 1,
-        "w": 6,
-        "h": 5
-      },
+      "title": "Respondidos · objetivo 99,9 % (1 h)",
+      "description": "SLI 1, disponibilidad. De los pedidos que R1 mandó a FreeRADIUS (logins y accounting), cuántos tuvieron respuesta. Un rechazo por contraseña cuenta como respondido: es la respuesta correcta. Si baja: dashboard Componentes, fila R1 como cliente RADIUS.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "targets": [
         {
-          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "1 - slo:radius_auth_errores:ratio_rate1h",
-          "legendFormat": "",
-          "instant": true
+          "legendFormat": "respondidos",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum(increase(routeros_radius_requests_total[1h])))",
+          "legendFormat": "pedidos en 1 h",
+          "instant": true,
+          "range": false,
+          "refId": "B"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Sin pedidos",
+                  "color": "#8E8E8E"
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -108,16 +155,76 @@
               }
             ]
           },
-          "decimals": 2,
-          "noValue": "sin pedidos"
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "transparent"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": []
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "transparent"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": []
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -125,34 +232,62 @@
           "fields": "",
           "values": false
         }
-      }
-    },
-    {
-      "id": 3,
-      "type": "stat",
-      "title": "SLI 2 · Sin reenvíos (1 h)",
-      "description": "1 - resends / requests. Latencia por política: cada reenvío es una respuesta más lenta que el timeout de R1 (3 s). SLO 99 %.",
+      },
+      "id": 2,
       "gridPos": {
-        "x": 6,
+        "x": 0,
         "y": 1,
         "w": 6,
         "h": 5
-      },
+      }
+    },
+    {
+      "type": "stat",
+      "title": "A tiempo · objetivo 99 % (1 h)",
+      "description": "SLI 2, latencia. Cuando la respuesta tarda más que el timeout de R1 (3 s), R1 reenvía el pedido. Si baja: base lenta o FreeRADIUS saturado (Componentes y PostgreSQL).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "targets": [
         {
-          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "1 - slo:radius_auth_reenvios:ratio_rate1h",
-          "legendFormat": "",
-          "instant": true
+          "legendFormat": "a tiempo",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum(increase(routeros_radius_requests_total[1h])))",
+          "legendFormat": "pedidos en 1 h",
+          "instant": true,
+          "range": false,
+          "refId": "B"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Sin pedidos",
+                  "color": "#8E8E8E"
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -162,7 +297,7 @@
               },
               {
                 "color": "orange",
-                "value": 0.95
+                "value": 0.8999999999999999
               },
               {
                 "color": "green",
@@ -170,16 +305,76 @@
               }
             ]
           },
-          "decimals": 2,
-          "noValue": "sin pedidos"
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "transparent"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": []
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "transparent"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": []
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -187,34 +382,62 @@
           "fields": "",
           "values": false
         }
-      }
-    },
-    {
-      "id": 4,
-      "type": "stat",
-      "title": "SLI 3 · Cortes normales (24 h)",
-      "description": "Sesiones cerradas por causa normal / total cerradas (radacct). Sin SLO: se muestra, no alerta.",
+      },
+      "id": 3,
       "gridPos": {
-        "x": 12,
+        "x": 6,
         "y": 1,
         "w": 6,
         "h": 5
-      },
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Sesiones que terminaron bien (24 h)",
+      "description": "SLI 3, sin objetivo: se muestra, no alerta. Proporción de sesiones que terminaron por una causa normal (el abonado cortó, inactividad, un operador). Con menos de 5 cierres en 24 h no se calcula el porcentaje: una sola sesión no dice nada. Detalle abajo, en Cómo terminaron las sesiones.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "targets": [
         {
-          "refId": "A",
-          "expr": "sli:radius_sesiones_estables:ratio_rate24h",
-          "legendFormat": "",
-          "instant": true
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sli:radius_sesiones_estables:ratio_rate24h and on() (sum(increase(radius_sesiones_cerradas_total[24h])) >= 5)) or on() (vector(-1) and on() (sum(increase(radius_sesiones_cerradas_total[24h])) < 5))",
+          "legendFormat": "terminaron bien",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum(increase(radius_sesiones_cerradas_total[24h])))",
+          "legendFormat": "sesiones cerradas",
+          "instant": true,
+          "range": false,
+          "refId": "B"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "Pocas para medir",
+                  "color": "#8E8E8E",
+                  "index": 0
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -232,16 +455,45 @@
               }
             ]
           },
-          "decimals": 1,
-          "noValue": "sin cortes"
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "transparent"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -249,34 +501,62 @@
           "fields": "",
           "values": false
         }
-      }
-    },
-    {
-      "id": 5,
-      "type": "stat",
-      "title": "SLI 4 · Accounting fresco",
-      "description": "Sesiones abiertas con Start/Interim en los últimos 11 min / sesiones abiertas. SLO 99 %.",
+      },
+      "id": 4,
       "gridPos": {
-        "x": 18,
+        "x": 12,
         "y": 1,
         "w": 6,
         "h": 5
-      },
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Accounting al día · objetivo 99 %",
+      "description": "SLI 4. De las sesiones abiertas, cuántas mandaron un aviso de accounting (Start o Interim) en los últimos 11 min; R1 avisa cada 5 min. Si baja, el consumo que se ve está atrasado.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "targets": [
         {
-          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "sli:radius_accounting_fresco:ratio",
-          "legendFormat": "",
-          "instant": true
+          "legendFormat": "proporción",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "radius_sesiones_activas_frescas",
+          "legendFormat": "al día",
+          "instant": true,
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "radius_sesiones_activas_total",
+          "legendFormat": "abiertas",
+          "instant": true,
+          "range": false,
+          "refId": "C"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -294,16 +574,68 @@
               }
             ]
           },
-          "decimals": 1,
-          "noValue": "sin sesiones"
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "transparent"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "transparent"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -311,12 +643,19 @@
           "fields": "",
           "values": false
         }
+      },
+      "id": 5,
+      "gridPos": {
+        "x": 18,
+        "y": 1,
+        "w": 6,
+        "h": 5
       }
     },
     {
       "id": 6,
       "type": "row",
-      "title": "Presupuesto de error (30 días)",
+      "title": "Alertas activas",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -327,450 +666,41 @@
       "panels": []
     },
     {
-      "id": 7,
-      "type": "stat",
-      "title": "Presupuesto restante · disponibilidad",
-      "description": "1 - (errores de 30 días / presupuesto 0,1 %). Con 20 000 autenticaciones por mes, el presupuesto es de 20 pedidos sin respuesta (bitácora 18/11). Negativo = SLO incumplido.",
-      "gridPos": {
-        "x": 0,
-        "y": 7,
-        "w": 6,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "1 - slo:radius_auth_errores:ratio_rate30d / 0.001",
-          "legendFormat": "",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.25
-              },
-              {
-                "color": "green",
-                "value": 0.5
-              }
-            ]
-          },
-          "decimals": 1,
-          "noValue": "sin pedidos"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 8,
-      "type": "stat",
-      "title": "Presupuesto restante · latencia",
-      "description": "1 - (reenvíos de 30 días / presupuesto 1 %). 200 pedidos con reenvío por mes.",
-      "gridPos": {
-        "x": 6,
-        "y": 7,
-        "w": 6,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "1 - slo:radius_auth_reenvios:ratio_rate30d / 0.01",
-          "legendFormat": "",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.25
-              },
-              {
-                "color": "green",
-                "value": 0.5
-              }
-            ]
-          },
-          "decimals": 1,
-          "noValue": "sin pedidos"
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 9,
-      "type": "timeseries",
-      "title": "Tasa de quema · disponibilidad",
-      "description": "Cuántas veces más rápido que lo permitido se consume el presupuesto. 1 = justo se agota en 30 días. Page si 1 h y 5 min > 14,4; ticket si 6 h y 30 min > 6.",
-      "gridPos": {
-        "x": 12,
-        "y": 7,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "slo:radius_auth_errores:ratio_rate1h / 0.001",
-          "legendFormat": "ventana 1 h"
-        },
-        {
-          "refId": "B",
-          "expr": "slo:radius_auth_errores:ratio_rate5m / 0.001",
-          "legendFormat": "ventana 5 min"
-        },
-        {
-          "refId": "C",
-          "expr": "slo:radius_auth_errores:ratio_rate6h / 0.001",
-          "legendFormat": "ventana 6 h"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true,
-            "thresholdsStyle": {
-              "mode": "dashed"
-            }
-          },
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "transparent",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 14.4
-              },
-              {
-                "color": "orange",
-                "value": 6
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 10,
-      "type": "stat",
-      "title": "Pedidos RADIUS (30 días)",
-      "description": "Total que vio R1 (incluye accounting). El presupuesto depende de este volumen.",
-      "gridPos": {
-        "x": 0,
-        "y": 12,
-        "w": 12,
-        "h": 3
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(increase(routeros_radius_requests_total[30d]))",
-          "legendFormat": "",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "none",
-        "graphMode": "none",
-        "textMode": "auto",
-        "justifyMode": "center",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 11,
-      "type": "timeseries",
-      "title": "Tasa de quema · latencia",
-      "description": "Igual que disponibilidad, con presupuesto 1 %.",
-      "gridPos": {
-        "x": 0,
-        "y": 15,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "slo:radius_auth_reenvios:ratio_rate1h / 0.01",
-          "legendFormat": "ventana 1 h"
-        },
-        {
-          "refId": "B",
-          "expr": "slo:radius_auth_reenvios:ratio_rate5m / 0.01",
-          "legendFormat": "ventana 5 min"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true,
-            "thresholdsStyle": {
-              "mode": "dashed"
-            }
-          },
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "transparent",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 14.4
-              },
-              {
-                "color": "orange",
-                "value": 6
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 12,
-      "type": "timeseries",
-      "title": "SLI 1 y SLI 2 (ventana 5 min)",
-      "description": "Huecos = ventanas sin pedidos (no hay síntoma que medir).",
-      "gridPos": {
-        "x": 12,
-        "y": 15,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "1 - slo:radius_auth_errores:ratio_rate5m",
-          "legendFormat": "disponibilidad"
-        },
-        {
-          "refId": "B",
-          "expr": "1 - slo:radius_auth_reenvios:ratio_rate5m",
-          "legendFormat": "sin reenvíos"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "custom": {
-            "fillOpacity": 10,
-            "lineWidth": 1,
-            "spanNulls": true,
-            "thresholdsStyle": {
-              "mode": "dashed"
-            }
-          },
-          "min": 0,
-          "max": 1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "transparent",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 0.999
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 13,
-      "type": "row",
-      "title": "Alertas",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 23,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "id": 14,
       "type": "table",
-      "title": "Alertas activas (Prometheus → Alertmanager)",
-      "description": "Detalle, runbook y silencios en Alertmanager: http://localhost:9093",
-      "gridPos": {
-        "x": 0,
-        "y": 24,
-        "w": 24,
-        "h": 6
-      },
+      "title": "Alertas activas",
+      "description": "Qué está sonando ahora. Detalle, qué hacer (runbook) y silencios en Alertmanager: http://localhost:9093",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "targets": [
         {
-          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "ALERTS{alertstate=~\"firing|pending\"}",
           "instant": true,
-          "format": "table"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "Value": true,
-              "__name__": true
-            },
-            "indexByName": {
-              "alertname": 0,
-              "alertstate": 1,
-              "severity": 2,
-              "service": 3,
-              "slo": 4,
-              "instance": 5
-            },
-            "renameByName": {
-              "alertname": "alerta",
-              "alertstate": "estado",
-              "severity": "severidad"
-            }
-          }
+          "range": false,
+          "format": "table",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "noValue": "Sin alertas activas"
+        },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "estado"
+              "options": "Estado"
             },
             "properties": [
               {
@@ -786,12 +716,42 @@
                     "type": "value",
                     "options": {
                       "firing": {
+                        "text": "Sonando",
                         "color": "red",
-                        "text": "sonando"
+                        "index": 0
                       },
                       "pending": {
+                        "text": "Por sonar",
                         "color": "orange",
-                        "text": "pendiente"
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severidad"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "page": {
+                        "text": "Urgente: despierta a alguien",
+                        "color": "red",
+                        "index": 0
+                      },
+                      "ticket": {
+                        "text": "Ticket: en horario laboral",
+                        "color": "orange",
+                        "index": 1
                       }
                     }
                   }
@@ -802,7 +762,1480 @@
         ]
       },
       "options": {
-        "showHeader": true
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "job": true,
+              "slo": true
+            },
+            "indexByName": {
+              "alertname": 0,
+              "alertstate": 1,
+              "severity": 2,
+              "service": 3,
+              "instance": 4
+            },
+            "renameByName": {
+              "alertname": "Alerta",
+              "alertstate": "Estado",
+              "severity": "Severidad",
+              "service": "Servicio",
+              "instance": "Dónde"
+            }
+          }
+        }
+      ],
+      "id": 7,
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 24,
+        "h": 4
+      }
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Presupuesto de error del mes: cuántas fallas permite el objetivo y cuántas hubo (30 días)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "options": {
+        "mode": "markdown",
+        "content": "**En el laboratorio el presupuesto está agotado, y es esperable.** El objetivo se diseñó para unos 20 000 pedidos por mes y el lab tiene unos 400: el 0,1 % permitido es menos de un pedido. Cada vez que se prende el lab (R1 pregunta antes de que FreeRADIUS esté listo) y cada prueba de caída gasta más de lo permitido. Por eso las alertas exigen además **al menos 3 fallas** en la ventana (bitácora 26/11)."
+      },
+      "id": 9,
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 2
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Pedidos sin respuesta: presupuesto",
+      "description": "Usados / permitidos. El objetivo permite 0,1 % de los pedidos del mes sin respuesta.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:radius_auth_fallas:increase30d / (slo:radius_pedidos:increase30d * 0.001)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": null,
+                "to": 0.5,
+                "result": {
+                  "text": "Queda más de la mitad",
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 0.5,
+                "to": 1,
+                "result": {
+                  "text": "Queda menos de la mitad",
+                  "color": "orange"
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 1,
+                "to": 1000000000000.0,
+                "result": {
+                  "text": "Agotado",
+                  "color": "red"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Sin pedidos en 30 días",
+                  "color": "#8E8E8E"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 10,
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 5,
+        "h": 5
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Pedidos sin respuesta: usados y permitidos",
+      "description": "Últimos 30 días. Permitidos = 0,1 % de los pedidos. Cantidad de pedidos, no porcentaje. Incluye logins y accounting.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(slo:radius_auth_fallas:increase30d)",
+          "legendFormat": "usados",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:radius_pedidos:increase30d * 0.001",
+          "legendFormat": "permitidos",
+          "instant": true,
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(slo:radius_pedidos:increase30d)",
+          "legendFormat": "pedidos en total",
+          "instant": true,
+          "range": false,
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 11,
+      "gridPos": {
+        "x": 5,
+        "y": 14,
+        "w": 7,
+        "h": 5
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Pedidos con reenvío (lentos): presupuesto",
+      "description": "Usados / permitidos. El objetivo permite 1 % de los pedidos del mes con reenvío.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:radius_auth_reenvios:increase30d / (slo:radius_pedidos:increase30d * 0.01)",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": null,
+                "to": 0.5,
+                "result": {
+                  "text": "Queda más de la mitad",
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 0.5,
+                "to": 1,
+                "result": {
+                  "text": "Queda menos de la mitad",
+                  "color": "orange"
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 1,
+                "to": 1000000000000.0,
+                "result": {
+                  "text": "Agotado",
+                  "color": "red"
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "Sin pedidos en 30 días",
+                  "color": "#8E8E8E"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 12,
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 5,
+        "h": 5
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Pedidos con reenvío (lentos): usados y permitidos",
+      "description": "Últimos 30 días. Permitidos = 1 % de los pedidos. Cantidad de pedidos, no porcentaje. Incluye logins y accounting.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(slo:radius_auth_reenvios:increase30d)",
+          "legendFormat": "usados",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:radius_pedidos:increase30d * 0.01",
+          "legendFormat": "permitidos",
+          "instant": true,
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(slo:radius_pedidos:increase30d)",
+          "legendFormat": "pedidos en total",
+          "instant": true,
+          "range": false,
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 13,
+      "gridPos": {
+        "x": 17,
+        "y": 14,
+        "w": 7,
+        "h": 5
+      }
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "¿A qué velocidad se gasta el presupuesto? (lo que miran las alertas)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Velocidad de gasto · pedidos sin respuesta",
+      "description": "Cuántas veces más rápido de lo permitido se gasta. ×1 = el presupuesto dura justo 30 días. AutenticacionQuemaRapida avisa (urgente) si la última hora y los últimos 5 min superan ×14,4 y hubo al menos 3 fallas; AutenticacionQuemaLenta abre un ticket si las 6 h y los 30 min superan ×6. Huecos = sin pedidos.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:radius_auth_errores:ratio_rate1h / 0.001",
+          "legendFormat": "última hora",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:radius_auth_errores:ratio_rate5m / 0.001",
+          "legendFormat": "últimos 5 min",
+          "instant": false,
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:radius_auth_errores:ratio_rate6h / 0.001",
+          "legendFormat": "últimas 6 h",
+          "instant": false,
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "vector(14.4)",
+          "legendFormat": "umbral aviso urgente (×14,4)",
+          "instant": false,
+          "range": true,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "vector(6)",
+          "legendFormat": "umbral ticket (×6)",
+          "instant": false,
+          "range": true,
+          "refId": "E"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:×",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": 20
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "umbral aviso urgente (×14,4)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "umbral ticket (×6)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "última hora"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "últimos 5 min"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "últimas 6 h"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 15,
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Velocidad de gasto · pedidos con reenvío",
+      "description": "Cuántas veces más rápido de lo permitido se gasta. ×1 = el presupuesto dura justo 30 días. AutenticacionLentaQuemaRapida avisa (urgente) si la última hora y los últimos 5 min superan ×14,4 y hubo al menos 3 fallas; AutenticacionLentaQuemaLenta abre un ticket si las 6 h y los 30 min superan ×6. Huecos = sin pedidos.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:radius_auth_reenvios:ratio_rate1h / 0.01",
+          "legendFormat": "última hora",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:radius_auth_reenvios:ratio_rate5m / 0.01",
+          "legendFormat": "últimos 5 min",
+          "instant": false,
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "slo:radius_auth_reenvios:ratio_rate6h / 0.01",
+          "legendFormat": "últimas 6 h",
+          "instant": false,
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "vector(14.4)",
+          "legendFormat": "umbral aviso urgente (×14,4)",
+          "instant": false,
+          "range": true,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "vector(6)",
+          "legendFormat": "umbral ticket (×6)",
+          "instant": false,
+          "range": true,
+          "refId": "E"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:×",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": 20
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "umbral aviso urgente (×14,4)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "umbral ticket (×6)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "última hora"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "últimos 5 min"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "últimas 6 h"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 16,
+      "gridPos": {
+        "x": 8,
+        "y": 20,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Pedidos respondidos y a tiempo, por ventana de 5 min",
+      "description": "El eje arranca en 98 % para que una caída se vea (si baja más, el eje se estira). Huecos = ventanas sin pedidos: no hay nada que medir.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "1 - slo:radius_auth_errores:ratio_rate5m",
+          "legendFormat": "respondidos",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "1 - slo:radius_auth_reenvios:ratio_rate5m",
+          "legendFormat": "a tiempo (sin reenvío)",
+          "instant": false,
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "vector(0.999)",
+          "legendFormat": "objetivo respondidos (99,9 %)",
+          "instant": false,
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "vector(0.99)",
+          "legendFormat": "objetivo a tiempo (99 %)",
+          "instant": false,
+          "range": true,
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": 0.98,
+            "axisSoftMax": null
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "max": 1.0005,
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "respondidos"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "a tiempo (sin reenvío)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "objetivo respondidos (99,9 %)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "objetivo a tiempo (99 %)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 17,
+      "gridPos": {
+        "x": 16,
+        "y": 20,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "id": 18,
+      "type": "row",
+      "title": "Cómo terminaron las sesiones (detalle del SLI 3)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "title": "Cómo terminaron las sesiones (rango elegido)",
+      "description": "Sesiones cerradas por causa en el rango de tiempo elegido arriba. Verde = normal, rojo = anormal (cuenta en contra del SLI 3). Sale de radacct (el accounting Stop que manda R1).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "label_replace(round(sum by (causa) (increase(radius_sesiones_cerradas_total[$__range]))) > 0, \"causa\", \"sin causa\", \"causa\", \"\")",
+          "instant": true,
+          "range": false,
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "noValue": "Ninguna sesión cerrada en el rango",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Causa"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "User-Request": {
+                        "text": "El abonado cortó (User-Request)",
+                        "color": "green",
+                        "index": 0
+                      },
+                      "Session-Timeout": {
+                        "text": "Se cumplió el tiempo máximo (Session-Timeout)",
+                        "color": "green",
+                        "index": 1
+                      },
+                      "Idle-Timeout": {
+                        "text": "Inactividad (Idle-Timeout)",
+                        "color": "green",
+                        "index": 2
+                      },
+                      "Admin-Reset": {
+                        "text": "Un operador o facturación lo cortó (Admin-Reset)",
+                        "color": "green",
+                        "index": 3
+                      },
+                      "NAS-Request": {
+                        "text": "Sacado desde R1 (NAS-Request)",
+                        "color": "green",
+                        "index": 4
+                      },
+                      "Lost-Carrier": {
+                        "text": "Se perdió el enlace (Lost-Carrier)",
+                        "color": "red",
+                        "index": 5
+                      },
+                      "Lost-Service": {
+                        "text": "Se perdió el servicio (Lost-Service)",
+                        "color": "red",
+                        "index": 6
+                      },
+                      "NAS-Error": {
+                        "text": "Error de R1 (NAS-Error)",
+                        "color": "red",
+                        "index": 7
+                      },
+                      "NAS-Reboot": {
+                        "text": "R1 se reinició (NAS-Reboot)",
+                        "color": "red",
+                        "index": 8
+                      },
+                      "Port-Error": {
+                        "text": "Error de puerto (Port-Error)",
+                        "color": "red",
+                        "index": 9
+                      },
+                      "sin causa": {
+                        "text": "Sin causa informada",
+                        "color": "#8E8E8E",
+                        "index": 10
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sesiones"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Sesiones",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "causa": "Causa",
+              "Value": "Sesiones"
+            }
+          }
+        }
+      ],
+      "id": 19,
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 12,
+        "h": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Sesiones cerradas por hora, normales y anormales",
+      "description": "Por hora. Un pico de anormales a la misma hora suele ser un problema de R1 o de la red, no de los abonados.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum(increase(radius_sesiones_cerradas_total{tipo=\"normal\"}[1h])))",
+          "legendFormat": "normales",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum(increase(radius_sesiones_cerradas_total{tipo!=\"normal\"}[1h])))",
+          "legendFormat": "anormales o sin causa",
+          "instant": false,
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 2,
+            "fillOpacity": 70,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            },
+            "axisLabel": "",
+            "showPoints": "never",
+            "spanNulls": false,
+            "barAlignment": 0,
+            "axisSoftMin": null,
+            "axisSoftMax": null
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "normales"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "anormales o sin causa"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 20,
+      "gridPos": {
+        "x": 12,
+        "y": 29,
+        "w": 12,
+        "h": 7
       }
     }
   ]

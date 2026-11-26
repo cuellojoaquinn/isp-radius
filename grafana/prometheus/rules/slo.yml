@@ -22,6 +22,13 @@
 # Con poco tráfico (laboratorio) una ventana sin pedidos da NaN y la alerta no
 # dispara: no hay pedidos fallando, no hay síntoma.
 #
+# Mínimo de fallas (bitácora 26/11): el SLO se diseñó para ~20 000 pedidos por mes y
+# el lab tiene unos 400. Con ese volumen un solo pedido perdido (un contenedor que se
+# reinicia, el lab que arranca) supera 14,4 y despertaría a alguien. Por eso las
+# alertas exigen además AL MENOS 3 pedidos fallidos en la ventana larga ("> 2.5":
+# increase() extrapola y 3 fallas pueden dar 2,97). Es la recomendación del SRE
+# workbook para servicios de poco tráfico: un evento aislado no es un incidente.
+#
 # Punto ciego del SLI 1: con PostgreSQL caído FreeRADIUS no deja de responder,
 # rechaza a todos (Invalid user -> Access-Reject) y un reject cuenta como respuesta.
 # Lo cubre la alerta FreeradiusSinBase, que sale del log (grafana/loki/rules/).
@@ -54,6 +61,23 @@ groups:
       - record: slo:radius_auth_reenvios:ratio_rate30d
         expr: sum(increase(routeros_radius_resends_total[30d])) / sum(increase(routeros_radius_requests_total[30d]))
 
+      # Cantidades absolutas: para el mínimo de fallas de las alertas y para mostrar
+      # el presupuesto en pedidos (no en porcentaje) en el dashboard Servicio
+      - record: slo:radius_auth_fallas:increase1h
+        expr: sum(increase(routeros_radius_requests_total[1h])) - (sum(increase(routeros_radius_accepts_total[1h])) + sum(increase(routeros_radius_rejects_total[1h])))
+      - record: slo:radius_auth_fallas:increase6h
+        expr: sum(increase(routeros_radius_requests_total[6h])) - (sum(increase(routeros_radius_accepts_total[6h])) + sum(increase(routeros_radius_rejects_total[6h])))
+      - record: slo:radius_auth_fallas:increase30d
+        expr: sum(increase(routeros_radius_requests_total[30d])) - (sum(increase(routeros_radius_accepts_total[30d])) + sum(increase(routeros_radius_rejects_total[30d])))
+      - record: slo:radius_auth_reenvios:increase1h
+        expr: sum(increase(routeros_radius_resends_total[1h]))
+      - record: slo:radius_auth_reenvios:increase6h
+        expr: sum(increase(routeros_radius_resends_total[6h]))
+      - record: slo:radius_auth_reenvios:increase30d
+        expr: sum(increase(routeros_radius_resends_total[30d]))
+      - record: slo:radius_pedidos:increase30d
+        expr: sum(increase(routeros_radius_requests_total[30d]))
+
       # SLI 3: proporción de cortes normales
       - record: sli:radius_sesiones_estables:ratio_rate1h
         expr: sum(increase(radius_sesiones_cerradas_total{tipo="normal"}[1h])) / sum(increase(radius_sesiones_cerradas_total[1h]))
@@ -73,6 +97,8 @@ groups:
           slo:radius_auth_errores:ratio_rate1h > (14.4 * 0.001)
           and
           slo:radius_auth_errores:ratio_rate5m > (14.4 * 0.001)
+          and on()
+          slo:radius_auth_fallas:increase1h > 2.5          # al menos 3 en 1h
         for: 2m
         labels: { severity: page, service: radius, slo: disponibilidad }
         annotations:
@@ -94,6 +120,8 @@ groups:
           slo:radius_auth_errores:ratio_rate6h > (6 * 0.001)
           and
           slo:radius_auth_errores:ratio_rate30m > (6 * 0.001)
+          and on()
+          slo:radius_auth_fallas:increase6h > 2.5          # al menos 3 en 6h
         for: 15m
         labels: { severity: ticket, service: radius, slo: disponibilidad }
         annotations:
@@ -107,6 +135,8 @@ groups:
           slo:radius_auth_reenvios:ratio_rate1h > (14.4 * 0.01)
           and
           slo:radius_auth_reenvios:ratio_rate5m > (14.4 * 0.01)
+          and on()
+          slo:radius_auth_reenvios:increase1h > 2.5          # al menos 3 en 1h
         for: 2m
         labels: { severity: page, service: radius, slo: latencia }
         annotations:
@@ -123,6 +153,8 @@ groups:
           slo:radius_auth_reenvios:ratio_rate6h > (6 * 0.01)
           and
           slo:radius_auth_reenvios:ratio_rate30m > (6 * 0.01)
+          and on()
+          slo:radius_auth_reenvios:increase6h > 2.5          # al menos 3 en 6h
         for: 15m
         labels: { severity: ticket, service: radius, slo: latencia }
         annotations:
