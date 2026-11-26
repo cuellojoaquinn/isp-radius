@@ -15,9 +15,16 @@
   "editable": true,
   "links": [
     {
-      "title": "Servicio RADIUS (SLOs)",
+      "title": "Servicio",
       "type": "link",
       "url": "/d/slos",
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
+      "title": "Abonados",
+      "type": "link",
+      "url": "/d/abonados",
       "icon": "dashboard",
       "keepTime": true
     },
@@ -55,7 +62,7 @@
       "id": 1,
       "type": "nodeGraph",
       "title": "Dependencias del servicio y salud de cada conexión",
-      "description": "Flecha = quién necesita a quién. Verde sano · amarillo degradado · rojo falla · gris = no sé (sin tráfico o exporter caído) o no lo medimos. Click en un nodo: links a sus logs y dashboards. Modelo: grafana/prometheus/rules/topologia.yml.",
+      "description": "Flecha = quién necesita a quién. Verde sano · amarillo degradado · rojo falla · gris = no sé (sin tráfico, sin datos) o no lo medimos. El número de cada círculo y de cada flecha dice su unidad debajo. Click en un círculo: links a sus logs y dashboards. Modelo: grafana/prometheus/rules/topologia.yml.",
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -129,7 +136,9 @@
               "__name__": true,
               "Value": true,
               "Value #nodes": true,
-              "Value #edges": true
+              "Value #edges": true,
+              "desde": true,
+              "hacia": true
             }
           }
         },
@@ -160,15 +169,19 @@
                 "value": [
                   {
                     "title": "Logs de ${__data.fields.title}",
-                    "url": "/d/logs?var-instance=${__data.fields.instancia}&${__url_time_range}"
+                    "url": "/d/logs?var-maquina=${__data.fields.instancia}&${__url_time_range}"
                   },
                   {
-                    "title": "Componentes (cuatro señales doradas)",
+                    "title": "Componentes (qué pieza falla)",
                     "url": "/d/componentes?${__url_time_range}"
                   },
                   {
-                    "title": "PostgreSQL",
+                    "title": "PostgreSQL (la base)",
                     "url": "/d/postgresql?${__url_time_range}"
+                  },
+                  {
+                    "title": "Infraestructura (las máquinas)",
+                    "url": "/d/infraestructura?${__url_time_range}"
                   }
                 ]
               }
@@ -225,7 +238,7 @@
       "id": 2,
       "type": "table",
       "title": "Conexiones",
-      "description": "Lo mismo que el mapa, en texto: se lee sin el dibujo.",
+      "description": "Lo mismo que el dibujo, en texto: se lee sin el mapa.",
       "gridPos": {
         "x": 0,
         "y": 14,
@@ -257,19 +270,21 @@
               "Time": true,
               "__name__": true,
               "id": true,
-              "color": true
+              "color": true,
+              "source": true,
+              "target": true
             },
             "indexByName": {
-              "source": 0,
-              "target": 1,
+              "desde": 0,
+              "hacia": 1,
               "detail__por": 2,
               "detail__estado": 3,
               "Value": 4,
               "secondarystat": 5
             },
             "renameByName": {
-              "source": "Desde",
-              "target": "Hacia",
+              "desde": "Desde",
+              "hacia": "Hacia",
               "detail__por": "Por",
               "detail__estado": "Estado",
               "Value": "Valor",
@@ -280,7 +295,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "decimals": 2
+          "decimals": 1
         },
         "overrides": [
           {
@@ -335,6 +350,28 @@
                   "type": "color-background",
                   "mode": "basic"
                 }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Valor"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "nan",
+                      "result": {
+                        "text": "—"
+                      }
+                    }
+                  }
+                ]
               }
             ]
           }
@@ -463,9 +500,32 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Valor"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "nan",
+                      "result": {
+                        "text": "—"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
           }
         ]
-      }
+      },
+      "description": "Los círculos del dibujo, en texto."
     }
   ]
 }

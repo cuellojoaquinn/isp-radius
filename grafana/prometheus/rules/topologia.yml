@@ -14,7 +14,8 @@
 # Node Graph usa directamente como campos:
 #   topologia_nodo{id, title, subtitle, secondarystat, color, detail__estado, instancia}
 #     (instancia = etiqueta instance de sus métricas y logs, para los links del mapa)
-#   topologia_conexion{id, source, target, secondarystat, color, detail__estado, detail__por}
+#   topologia_conexion{id, source, target, desde, hacia, secondarystat, color, detail__estado, detail__por}
+#     (desde/hacia = nombres para la tabla; source/target = ids para el dibujo)
 # Cada estado es una regla que solo produce serie cuando su condición se cumple: en cada
 # momento hay una sola serie por elemento. El color va como etiqueta (texto CSS) porque
 # Node Graph usa así el color de las conexiones.
@@ -76,7 +77,7 @@ groups:
       - record: topologia_nodo
         expr: (sum(pg_stat_activity_count) or on() vector(NaN)) and on() (max(pg_up) == 1)
         labels:
-          <<: &n_postgres { id: postgres, instancia: db, title: PostgreSQL, subtitle: "10.10.10.20", secondarystat: conexiones }
+          <<: &n_postgres { id: postgres, instancia: db, title: PostgreSQL, subtitle: "radius + facturación · 10.10.10.20", secondarystat: conexiones }
           detail__estado: sano
           color: "#73BF69"
       - record: topologia_nodo
@@ -136,7 +137,7 @@ groups:
           sum(routeros_ppp_active_sessions{ppp_service="pppoe"})
           and on() (max(mktxp_ip_pool_used{pool="pool-pppoe"} / mktxp_ip_pool_total{pool="pool-pppoe"}) < 0.8)
         labels:
-          <<: &c_pppoe { id: abonados-r1, source: abonados, target: r1, secondarystat: sesiones, detail__por: "PPPoE (pool-pppoe)" }
+          <<: &c_pppoe { id: abonados-r1, source: abonados, target: r1, desde: Abonados, hacia: R1, secondarystat: sesiones, detail__por: "PPPoE (pool-pppoe)" }
           detail__estado: sano
           color: "#73BF69"
       - record: topologia_conexion
@@ -159,7 +160,7 @@ groups:
       - record: topologia_conexion
         expr: (sum(rate(routeros_radius_requests_total[5m])) * 60) and on() (slo:radius_auth_errores:ratio_rate5m == 0)
         labels:
-          <<: &c_radius { id: r1-freeradius, source: r1, target: freeradius, secondarystat: "pedidos/min", detail__por: "RADIUS UDP 1812/1813" }
+          <<: &c_radius { id: r1-freeradius, source: r1, target: freeradius, desde: R1, hacia: FreeRADIUS, secondarystat: "pedidos/min", detail__por: "RADIUS UDP 1812/1813" }
           detail__estado: sano
           color: "#73BF69"
       - record: topologia_conexion
@@ -181,7 +182,7 @@ groups:
       - record: topologia_conexion
         expr: (max(radius:sql_errores:rate5m) * 60 == 0) and on() (max(freeradius_up) == 1)
         labels:
-          <<: &c_sql { id: freeradius-postgres, source: freeradius, target: postgres, secondarystat: "errores sql/min", detail__por: "SQL TCP 5432" }
+          <<: &c_sql { id: freeradius-postgres, source: freeradius, target: postgres, desde: FreeRADIUS, hacia: PostgreSQL, secondarystat: "errores sql/min", detail__por: "SQL TCP 5432" }
           detail__estado: sano
           color: "#73BF69"
       - record: topologia_conexion
@@ -199,7 +200,7 @@ groups:
       - record: topologia_conexion
         expr: (max(facturacion:sql_errores:count15m) == 0) and on() (sum(facturacion:corridas:count15m) > 0)
         labels:
-          <<: &c_fact_sql { id: facturacion-postgres, source: facturacion, target: postgres, secondarystat: "errores sql/15 min", detail__por: "SQL (docker exec)" }
+          <<: &c_fact_sql { id: facturacion-postgres, source: facturacion, target: postgres, desde: Facturación, hacia: PostgreSQL, secondarystat: "errores sql/15 min", detail__por: "SQL (docker exec)" }
           detail__estado: sano
           color: "#73BF69"
       - record: topologia_conexion
@@ -221,7 +222,7 @@ groups:
           (max(facturacion:disconnect_ok:count24h) + max(facturacion:disconnect_fallas:count24h))
           and on() (max(facturacion:disconnect_ok:count24h) > 0) and on() (max(facturacion:disconnect_fallas:count24h) == 0)
         labels:
-          <<: &c_fact_coa { id: facturacion-freeradius, source: facturacion, target: freeradius, secondarystat: "disconnect/24 h", detail__por: "Disconnect UDP 3799" }
+          <<: &c_fact_coa { id: facturacion-freeradius, source: facturacion, target: freeradius, desde: Facturación, hacia: FreeRADIUS, secondarystat: "disconnect/24 h", detail__por: "Disconnect UDP 3799" }
           detail__estado: sano
           color: "#73BF69"
       - record: topologia_conexion
@@ -245,5 +246,5 @@ groups:
       #     falló: no se le asigna estado propio.
       - record: topologia_conexion
         expr: vector(NaN)
-        labels: { id: freeradius-r1-coa, source: freeradius, target: r1, secondarystat: "", detail__por: "CoA/Disconnect UDP 3799",
+        labels: { id: freeradius-r1-coa, source: freeradius, target: r1, desde: FreeRADIUS, hacia: R1, secondarystat: "", detail__por: "CoA/Disconnect UDP 3799",
                   detail__estado: sin_metrica, color: "#8E8E8E" }
