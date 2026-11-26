@@ -41,7 +41,7 @@ Pantalla: **Componentes**, con la fila *En vivo* arriba y refresco cada 10 s. En
 | 2 | Se conectan los clientes | `scripts/demo/abonados.sh conectar` (vuelve a crear las 10 conexiones) | En *Logins en vivo* entran los 10 `Login OK` en segundos, cada uno con su usuario y la MAC de su router. Para mostrar el alta desde cero, ver la sección *Alta de un cliente* |
 | 5 | Tráfico por cliente | — | Abonados: abonado5 (streaming, ~100 kbit/s constante), abonado4 (ráfagas) y abonado3 (casi nada). El historial de sesiones. Infraestructura: tráfico de R1 hacia abonados |
 | 7 | Contraseña equivocada | `scripts/demo/fuerza-bruta.sh 3` | Abonados (abonado2): `Login incorrect` con el motivo. *Logins en vivo* se llena de rechazos. Si supera 20 en 5 min, suena la alerta PosibleFuerzaBruta |
-| 10 | Un cliente no paga | `scripts/demo/deuda.sh abonado5` y después `suspender` (sección 3) | La curva de abonado5 se corta en vivo y la sesión termina con "facturación lo cortó". Con pago y `rehabilitar`, vuelve |
+| 10 | Un cliente no paga | `scripts/demo/deuda.sh abonado5` y después `suspender` (sección 3) | La curva de abonado5 se corta en vivo y la sesión termina con "R1 la cortó (a mano o por orden de facturación)". Con pago y `rehabilitar`, vuelve |
 | 12 | Se cae la base | Sección 5 | Mapa en rojo. Los conectados siguen navegando: las curvas no se cortan. Alerta urgente y diagnóstico por Telegram |
 | 14 | Corte de luz en R1 | `VBoxManage controlvm isp-radius_r1 reset` | Los 12 abonados caen a 0 y se reconectan todos juntos: tormenta de logins en *Logins en vivo*. Alerta R1Reiniciado |
 | 15 | Cierre | — | Servicio: indicadores con muestra real, cortes por causa, alertas que sonaron |
@@ -92,7 +92,7 @@ scripts/demo/deuda.sh abonado2                    # factura vencida ayer, impaga
 vagrant ssh db -c 'systemd-cat -t facturacion-suspender --stderr-priority=err /vagrant/facturacion/suspender.sh'
 ```
 **Qué mirar:**
-- **Abonados (abonado2)**: *Plan o estado* = "Suspendido por falta de pago", la sesión terminó con "Un operador o facturación lo cortó" y los intentos de R3 se rechazan.
+- **Abonados (abonado2)**: *Plan o estado* = "Suspendido por falta de pago", la sesión terminó con "R1 la cortó (a mano o por orden de facturación)" y los intentos de R3 se rechazan.
 - **Logs**, fila Facturación: `Suspendido: abonado2` y `sesión en 10.10.10.1 cortada (Disconnect-ACK)`.
 - **Mapa**: la conexión Facturación → FreeRADIUS pasa a verde ("1 disconnect/24 h"), o a amarillo si en las últimas 24 h hubo alguna orden sin confirmar.
 

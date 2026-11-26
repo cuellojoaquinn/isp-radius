@@ -2004,12 +2004,12 @@
                         "index": 2
                       },
                       "Admin-Reset": {
-                        "text": "Un operador o facturación lo cortó (Admin-Reset)",
+                        "text": "Un operador la cortó (Admin-Reset)",
                         "color": "green",
                         "index": 3
                       },
                       "NAS-Request": {
-                        "text": "Sacado desde R1 (NAS-Request)",
+                        "text": "R1 la cortó (a mano o por orden de facturación) (NAS-Request)",
                         "color": "green",
                         "index": 4
                       },
