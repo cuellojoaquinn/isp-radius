@@ -574,3 +574,9 @@ Objetivo: que en la demo se pueda probar cada parte (guía en `DEMO.md`).
   - las consultas del exporter recorren tablas que crecen sin límite;
   - `radpostauth` no se limpia nunca.
 
+
+### Límite conocido: fallas fantasma en el SLI 1 después de reiniciar R1
+- Con R1 recién reiniciado, los contadores de `/radius monitor` son chicos (por ejemplo, 4 rechazos en total). `increase()` extrapola cada serie hasta el borde de la ventana, salvo cuando el contador estaría en cero antes del comienzo: ahí corta la extrapolación.
+- Por eso `rejects` se extrapola menos que `requests` y aparecen pedidos "sin respuesta" que no existieron: 9,47 pedidos contra 9,35 respuestas, con 0 timeouts. La conexión R1 → FreeRADIUS del mapa se pone en rojo unos minutos.
+- Pasa solo con contadores chicos y desaparece cuando la ventana avanza. Las alertas no disparan, porque exigen 3 fallas.
+- Arreglo posible a futuro: registrar `accepts + rejects` como una sola serie de respuestas y calcular `increase()` sobre esa serie, así la extrapolación es la misma para pedidos y respuestas.
