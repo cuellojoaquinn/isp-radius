@@ -1,0 +1,76 @@
+# Alertas de eventos (bitácora 26/11): cosas que pasaron y alguien tiene que saber,
+# aunque el servicio ya se haya recuperado. Todas son ticket: nadie se despierta por
+# esto, pero queda registrado y se revisa en horario laboral.
+#
+#   R1Reiniciado / VMReiniciada  un reinicio corta a todos los abonados (R1) o a un
+#                                servicio entero (VM). Suena 15 min después de arrancar.
+#   FacturacionNoCorre           el cron de la VM db no corre los jobs: nadie es
+#                                suspendido ni rehabilitado y nadie se entera.
+#   FacturacionFalla             una corrida de suspender o rehabilitar terminó con error.
+#   OrdenDeCorteSinConfirmar     suspender cortó a alguien en la base pero R1 no
+#                                confirmó el Disconnect: sigue navegando sin pagar.
+#
+# Las de facturación salen del log de los jobs (ruler de Loki, loki/rules/fake/facturacion.yml).
+# No hay alerta "suspender no corrió en 24 h": el lab se prende de día y sonaría en cada
+# demo; si el cron muere, FacturacionNoCorre lo ve por rehabilitar (cada 5 min).
+
+groups:
+  - name: eventos
+    rules:
+      - alert: R1Reiniciado
+        expr: max(mktxp_system_uptime) < 900
+        labels: { severity: ticket, service: pppoe, instance: r1 }
+        annotations:
+          summary: "R1 se reinició hace {{ $value | humanizeDuration }}"
+          description: "Un reinicio de R1 corta las sesiones de todos los abonados (causa NAS-Reboot)."
+          runbook: >-
+            1) ¿Fue a propósito? Dashboard Logs, R1: "router was rebooted without proper shutdown" = corte de
+               energía o cuelgue; "system,info rebooted by" = alguien lo reinició.
+            2) ¿Volvieron los abonados? Componentes, Abonados conectados.
+            3) ¿Quedaron sesiones fantasma? Al arrancar R1 manda Accounting-On y FreeRADIUS las cierra:
+               Servicio, Cómo terminaron las sesiones (R1 se reinició).
+
+      - alert: VMReiniciada
+        expr: time() - node_boot_time_seconds < 900
+        labels: { severity: ticket }
+        annotations:
+          summary: "La VM {{ $labels.instance }} se reinició hace {{ $value | humanizeDuration }}"
+          description: "Sus contenedores arrancan solos (restart: unless-stopped); verificar que estén todos."
+          runbook: >-
+            1) Dashboard Infraestructura: ¿todas las fuentes de datos responden?
+            2) vagrant ssh {{ $labels.instance }} -c 'docker ps' y journalctl -b -1 -p err (por qué se apagó).
+
+      - alert: FacturacionNoCorre
+        expr: |
+          max(facturacion:corridas:count15m{tarea="rehabilitar"}) == 0
+          and on() max(up{job="alloy", instance="db"}) == 1
+        for: 10m
+        labels: { severity: ticket, service: facturacion, instance: db }
+        annotations:
+          summary: "Los jobs de facturación no están corriendo (rehabilitar, sin corridas en 15 min)"
+          description: "Nadie es suspendido ni rehabilitado. El log de la VM db sí llega (Alloy arriba): es el cron."
+          runbook: >-
+            En la VM db: 1) crontab -l (¿está instalado? facturacion/crontab.txt);
+            2) systemctl status cron; 3) journalctl -t facturacion-rehabilitar -n 20.
+
+      - alert: FacturacionFalla
+        expr: max(facturacion:fallas:count15m) > 0
+        labels: { severity: ticket, service: facturacion, instance: db }
+        annotations:
+          summary: "{{ $value }} corrida(s) de los jobs de facturación terminaron con error (15 min)"
+          description: "Las suspensiones o rehabilitaciones de esa corrida no se hicieron."
+          runbook: >-
+            Dashboard Logs, fila Facturación (líneas en rojo). "psql: ... role/schema does not exist" =
+            falta el esquema o el usuario facturacion (db/init/04 a 07); "connection refused" = PostgreSQL
+            caído; radclient = FreeRADIUS o el secreto de facturacion/.env.
+
+      - alert: OrdenDeCorteSinConfirmar
+        expr: max(facturacion:disconnect_fallas:count24h) > 0
+        labels: { severity: ticket, service: facturacion, instance: db }
+        annotations:
+          summary: "{{ $value }} abonado(s) suspendidos sin confirmar el corte en R1 (24 h)"
+          description: "Quedó moroso en la base pero la sesión sigue abierta: navega hasta que se reconecte."
+          runbook: >-
+            1) Dashboard Logs, Facturación: "ATENCIÓN: no se pudo cortar la sesión en <NAS>" (quién).
+            2) Cortarlo a mano: /ppp active remove [find name=<usuario>] en R1.
+            3) Causa: ¿FreeRADIUS arriba? ¿/radius incoming habilitado en R1? ¿secreto de facturación?

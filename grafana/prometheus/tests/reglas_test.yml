@@ -5,6 +5,7 @@ rule_files:
   - ../rules/slo.yml
   - ../rules/saturacion.yml
   - ../rules/infraestructura.yml
+  - ../rules/eventos.yml
 
 evaluation_interval: 1m
 
@@ -159,3 +160,52 @@ tests:
               summary: "pool-pppoe de R1 al 82.42%"
               description: "Sin IPs libres, el abonado se autentica (Access-Accept) pero falla en IPCP y no navega."
               runbook: "Ampliar pool-pppoe en R1 (/ip pool) o agregar un rango. Revisar sesiones colgadas (/ppp active)."
+
+  # --- Eventos (rules/eventos.yml). Se prueban por la serie ALERTS: sin repetir las anotaciones.
+  - name: R1 recien reiniciado -> ticket; con uptime largo, nada
+    interval: 1m
+    input_series:
+      - { series: 'mktxp_system_uptime{instance="r1"}', values: '300+60x10' }
+      - { series: 'node_boot_time_seconds{instance="db"}', values: '-100000x20' }
+    promql_expr_test:
+      - expr: count by (alertname, alertstate) (ALERTS{alertname=~"R1Reiniciado|VMReiniciada"})
+        eval_time: 2m
+        exp_samples:
+          - { labels: '{alertname="R1Reiniciado", alertstate="firing"}', value: 1 }
+      - expr: count(ALERTS{alertname="R1Reiniciado"}) or vector(0)
+        eval_time: 12m          # uptime 1020 s: ya pasaron los 15 min
+        exp_samples:
+          - { labels: '{}', value: 0 }
+
+  - name: facturacion sin corridas con alloy arriba -> FacturacionNoCorre
+    interval: 1m
+    input_series:
+      - { series: 'facturacion:corridas:count15m{tarea="rehabilitar"}', values: '0x30' }
+      - { series: 'up{job="alloy",instance="db"}', values: '1x30' }
+    alert_rule_test:
+      - { eval_time: 5m, alertname: FacturacionNoCorre, exp_alerts: [] }     # "for: 10m"
+    promql_expr_test:
+      - expr: count by (alertname, alertstate, instance) (ALERTS{alertname="FacturacionNoCorre"})
+        eval_time: 15m
+        exp_samples:
+          - { labels: '{alertname="FacturacionNoCorre", alertstate="firing", instance="db"}', value: 1 }
+
+  - name: facturacion sin corridas con alloy caido -> no sabemos, no avisa
+    interval: 1m
+    input_series:
+      - { series: 'facturacion:corridas:count15m{tarea="rehabilitar"}', values: '0x30' }
+      - { series: 'up{job="alloy",instance="db"}', values: '0x30' }
+    alert_rule_test:
+      - { eval_time: 20m, alertname: FacturacionNoCorre, exp_alerts: [] }
+
+  - name: corrida fallida y corte sin confirmar -> tickets
+    interval: 1m
+    input_series:
+      - { series: 'facturacion:fallas:count15m', values: '1x10' }
+      - { series: 'facturacion:disconnect_fallas:count24h', values: '1x10' }
+    promql_expr_test:
+      - expr: count by (alertname, severity) (ALERTS{alertname=~"FacturacionFalla|OrdenDeCorteSinConfirmar", alertstate="firing"})
+        eval_time: 2m
+        exp_samples:
+          - { labels: '{alertname="FacturacionFalla", severity="ticket"}', value: 1 }
+          - { labels: '{alertname="OrdenDeCorteSinConfirmar", severity="ticket"}', value: 1 }
